@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Fluctuation</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <h1>データの変動（Fluctuation）</h1>
+    <a href="/">TOPへ戻る</a>
+
+    <canvas id="positiveChart" width="600" height="300"></canvas>
+    <canvas id="negativeChart" width="600" height="300"></canvas>
+    <canvas id="typingChart" width="600" height="300"></canvas>
+
+    <script>
+    const dates = {{ dates|default([])|tojson }};
+    const positive = {{ positive_list|default([])|tojson }};
+    const negative = {{ negative_list|default([])|tojson }};
+    const typing_speed = {{ typing_speed_list|default([])|tojson }};
+    const typing_accuracy = {{ typing_accuracy_list|default([])|tojson }};
+
+        // ポジティブ感情の折れ線
+        new Chart(document.getElementById('positiveChart'), {
+            type: 'line',
+            data: {
+                labels: dates,
+                datasets: [{
+                    label: 'ポジティブ感情',
+                    data: positive,
+                    borderColor: 'green',
+                    fill: false
+                }]
+            }
+        });
+
+        // ネガティブ感情の折れ線
+        new Chart(document.getElementById('negativeChart'), {
+            type: 'line',
+            data: {
+                labels: dates,
+                datasets: [{
+                    label: 'ネガティブ感情',
+                    data: negative,
+                    borderColor: 'red',
+                    fill: false
+                }]
+            }
+        });
+
+        // タイピング速度と正確性
+        new Chart(document.getElementById('typingChart'), {
+            type: 'line',
+            data: {
+                labels: dates,
+                datasets: [
+                    {
+                        label: 'タイピング速度（文字/秒）',
+                        data: typing_speed,
+                        borderColor: 'blue',
+                        fill: false
+                    },
+                    {
+                        label: 'タイピング正確性（%）',
+                        data: typing_accuracy,
+                        borderColor: 'orange',
+                        fill: false
+                    }
+                ]
+            }
+        });
+    </script>
+</body>
+</html>
+
+

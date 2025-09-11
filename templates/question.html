@@ -9,7 +9,7 @@
 <body>
     <h1>question</h1>
     <a href="/">TOPへ戻る</a>
-    <form action="/form" method="post">
+    <form action="/form" method="post" id="questionForm">
         
         <label for="emotion_positive">Q1.今日のポジティブな気分を教えてください：</label><br>
         <input type="range" id="emotion_positive" name="emotion_positive" min="0" max="100" step="1" value="0"
@@ -17,7 +17,7 @@
         <output>0</output><br><br>
         
         <label for="emotion_negative">Q2.今日のネガティブな気分を教えてください：</label><br>
-        <input type="range" id="emotion_positive" name="emotion_positive" min="0" max="100" step="1" value="0"
+        <input type="range" id="emotion_negative" name="emotion_negative" min="0" max="100" step="1" value="0"
             oninput="this.nextElementSibling.value = this.value">
         <output>0</output><br><br>
         
@@ -31,7 +31,52 @@
             <option value="30-60">30〜60分</option>
             <option value="60+">60分以上</option>
         </select><br><br>
-    <button type="submit">送信</button>
+
+        <!-- タイピングテスト -->
+        <h2>タイピングテスト</h2>
+        <p id="targetText"></p>
+        <input type="text" id="typingInput" autocomplete="off"><br><br>
+
+        <!-- タイピング結果を hidden で送信 -->
+        <input type="hidden" name="typing_speed" id="typing_speed">
+        <input type="hidden" name="typing_accuracy" id="typing_accuracy">
+
+        <button type="submit">送信</button>
     </form>
+
+    <script>
+        const sentences = [
+            "Python is fun",
+            "I love programming",
+            "Data science is the future",
+            "Machine learning changes the world",
+            "Artificial intelligence is amazing"
+        ];
+
+        const target = sentences[Math.floor(Math.random() * sentences.length)];
+        document.getElementById('targetText').innerText = target;
+
+        const typingInput = document.getElementById('typingInput');
+        let startTime = null;
+
+        typingInput.addEventListener('input', () => {
+            if (!startTime) startTime = performance.now();
+        });
+
+        document.getElementById('questionForm').addEventListener('submit', (e) => {
+            const endTime = performance.now();
+            const typed = typingInput.value;
+            const totalTime = (endTime - startTime) / 1000; // 秒
+            const speed = typed.length / totalTime;
+            let correct = 0;
+            for (let i = 0; i < Math.min(typed.length, target.length); i++) {
+                if (typed[i] === target[i]) correct++;
+            }
+            const accuracy = typed.length > 0 ? (correct / typed.length) * 100 : 0;
+
+            document.getElementById('typing_speed').value = speed.toFixed(2);
+            document.getElementById('typing_accuracy').value = accuracy.toFixed(2);
+        });
+    </script>
 </body>
 </html>
