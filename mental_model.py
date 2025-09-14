@@ -14,7 +14,6 @@ def train_and_save(csv_path="mentalwave_input_data.csv"):
     X = scaler.fit_transform(X)
     joblib.dump(scaler, "scaler.pkl")  
 
-    # シーケンス作成
     def create_sequences(X, y, time_steps=5):
         Xs, ys = [], []
         for i in range(len(X) - time_steps):

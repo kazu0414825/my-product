@@ -4,13 +4,24 @@
 <head>
     <title>Index</title>
     <meta charset="utf-8" />
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='stylesheets/index.css') }}">
 </head>
 
 <body>
-    <p>mental wave</p>
-    <a href="/question">questionページへ遷移する</a>
-    <a href="/predict">predictページへ遷移する</a>
-    <a href="/fluctuation">fluctuationページへ遷移する</a>
+    <div class="container">
+        <div class="item question">
+            <a href="/question">questionページ📝</a>
+        </div>
+        
+        <div class="item predict">
+            <a href="/predict">predictページ🧠</a>
+        </div>
+
+        <div class="item fluctuation">
+            <a href="/fluctuation">fluctuationページ📊</a>
+        </div>
+    </div>
+
 </body>
 
 </html>

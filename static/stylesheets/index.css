@@ -1,0 +1,55 @@
+
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: linear-gradient(to right, #e0f7fa, #fff);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
+
+.container {
+    background: white;
+    padding: 40px;
+    border-radius: 15px;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+    text-align: center;
+}
+
+.item {
+    margin: 20px 0;
+    padding: 20px 40px;
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    transition: transform 0.2s;
+}
+
+.item a {
+    font-size: 20px;
+    text-decoration: none;
+    font-weight: bold;
+}
+
+.item:hover {
+    transform: translateY(-5px);
+}
+
+/* ページごとの色分け */
+.item.predict {
+    border: 2px solid #4caf50;
+    background-color: #e8f5e9;
+}
+.item.predict a { color: #2e7d32; }
+
+.item.question {
+    border: 2px solid #ff9800;
+    background-color: #fff3e0;
+}
+.item.question a { color: #e65100; }
+
+.item.fluctuation {
+    border: 2px solid #2196f3;
+    background-color: #e3f2fd;
+}
+.item.fluctuation a { color: #0d47a1; }
