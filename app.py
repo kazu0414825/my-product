@@ -1,16 +1,26 @@
 from flask import Flask, request, render_template, redirect, url_for, make_response
-from models import db, TrainingData  # ←ここでインポート
+from models import db, TrainingData
 import numpy as np
 from datetime import datetime, timedelta
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense
 from sklearn.preprocessing import StandardScaler
+import os
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///mentalwave.db'
+
+# Heroku PostgreSQL用設定
+DATABASE_URL = os.environ.get('DATABASE_URL')
+if DATABASE_URL is None:
+    DATABASE_URL = 'sqlite:///mentalwave.db'  # ローカル用 fallback
+else:
+    # SQLAlchemy 3.x 用に置換
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://")
+
+app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-db.init_app(app) 
+db.init_app(app)
 
 # ----------------- 質問リスト -----------------
 positive_questions = [
@@ -45,7 +55,7 @@ def get_user_id():
         uid = str(np.random.randint(1000000))
     return uid
 
-# ----------------- トップ -----------------
+# ----------------- ルーティング -----------------
 @app.route('/')
 def index():
     resp = make_response(render_template('index.html'))
@@ -53,7 +63,6 @@ def index():
     resp.set_cookie("user_id", uid)
     return resp
 
-# ----------------- 質問ページ -----------------
 @app.route('/question')
 def question():
     import random
@@ -66,7 +75,6 @@ def question():
         item['id'] = f"q{i}"
     return render_template('question.html', questions=combined)
 
-# fluctuationページ
 @app.route('/fluctuation')
 def fluctuation():
     data = TrainingData.query.order_by(TrainingData.timestamp).all()
@@ -90,8 +98,6 @@ def fluctuation():
         typing_accuracy_list=typing_accuracy_list
     )
 
-
-# ----------------- フォーム送信 -----------------
 @app.route('/form', methods=['POST'])
 def form():
     uid = get_user_id()
@@ -113,7 +119,6 @@ def form():
         if t2 <= t1: t2 += timedelta(days=1)
         sleep_time = round((t2-t1).total_seconds()/3600.0,2)
 
-    # to_sleep_time
     to_sleep_time = {"0-15":7.5,"15-30":22.5,"30-60":45,"60+":60}.get(request.form.get("to_sleep_time","0-15"),0)
     training_time = float(request.form.get("training_time",0))
     weight = float(request.form.get("weight",0))
@@ -132,31 +137,23 @@ def form():
     )
     db.session.add(data)
     db.session.commit()
-
-    # 送信後は自動でTOPにリダイレクト
     return redirect(url_for('index'))
 
-# ----------------- 予測ページ -----------------
 @app.route('/predict', methods=['GET', 'POST'])
 def predict():
     uid = get_user_id()
     if request.method=="POST":
         days = int(request.form['days'])
-
-        # DBからユーザーのデータ取得
         df = db.session.query(TrainingData).filter_by(user_id=uid).order_by(TrainingData.timestamp).all()
         if len(df)<5:
             return f"データが少なすぎます（{len(df)}件）"
 
-        # 7特徴量のみ
         X = np.array([[d.mood,d.sleep_time,d.to_sleep_time,d.training_time,d.weight,d.typing_speed,d.typing_accuracy] for d in df])
-        y = X[:,0]  # moodを予測対象とする例
+        y = X[:,0]
 
-        # 標準化
         scaler = StandardScaler()
         X_scaled = scaler.fit_transform(X)
 
-        # 時系列5ステップ
         time_steps = 5
         X_seq, y_seq = [], []
         for i in range(len(X_scaled)-time_steps):
@@ -165,7 +162,6 @@ def predict():
         X_seq = np.array(X_seq)
         y_seq = np.array(y_seq)
 
-        # LSTMモデル構築・学習
         model = Sequential([
             LSTM(64,input_shape=(time_steps,X.shape[1])),
             Dense(32,activation='relu'),
@@ -174,7 +170,6 @@ def predict():
         model.compile(optimizer='adam', loss='mse')
         model.fit(X_seq, y_seq, epochs=30, batch_size=16, verbose=0)
 
-        # 未来予測
         history_window = list(X_scaled[-time_steps:])
         predictions = []
         for _ in range(days):
@@ -188,7 +183,7 @@ def predict():
         return render_template("predict.html", prediction=predictions, days=days)
 
     return render_template("predict.html")
-    
+
 # ----------------- 初期化 -----------------
 if __name__=="__main__":
     with app.app_context():
