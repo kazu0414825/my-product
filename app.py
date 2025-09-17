@@ -9,18 +9,22 @@ import os
 
 app = Flask(__name__)
 
-# Heroku PostgreSQL用設定
+# データベース設定
 DATABASE_URL = os.environ.get('DATABASE_URL')
-if DATABASE_URL is None:
-    DATABASE_URL = 'sqlite:///mentalwave.db'  # ローカル用 fallback
-else:
-    # SQLAlchemy 3.x 用に置換
+if DATABASE_URL:
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://")
+else:
+    DATABASE_URL = "sqlite:///mentalwave.db"
 
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db.init_app(app)
+
+# ----------------- 初期化 -----------------
+with app.app_context():
+    # DBが存在しなくてもテーブルを作成
+    db.create_all()
 
 # ----------------- 質問リスト -----------------
 positive_questions = [
