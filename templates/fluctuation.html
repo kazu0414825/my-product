@@ -15,7 +15,6 @@
     <canvas id="weightChart"></canvas>
     <canvas id="trainingChart"></canvas>
     <canvas id="typing1Chart"></canvas>
-    <canvas id="typing2Chart"></canvas>
     
     <script>
     const dates = {{ dates|tojson }};
@@ -54,12 +53,6 @@
     new Chart(document.getElementById('typing1Chart'), {
         type: 'line',
         data: { labels: dates, datasets: [{ label: 'タイピング速度', data: typing_speed, borderColor: 'blue', fill: false }] }
-    });
-
-    // タイピング精度
-    new Chart(document.getElementById('typing2Chart'), {
-        type: 'line',
-        data: { labels: dates, datasets: [{ label: 'タイピング精度', data: typing_accuracy, borderColor: 'pink', fill: false }] }
     });
 
 </script>

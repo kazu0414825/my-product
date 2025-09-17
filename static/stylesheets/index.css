@@ -1,12 +1,22 @@
 
+
 body {
     margin: 0;
     font-family: Arial, sans-serif;
-    background: linear-gradient(to right, #e0f7fa, #fff);
+    background: linear-gradient(to right, #cfeafb, #fff);
     display: flex;
+    flex-direction:column;
     justify-content: center;
     align-items: center;
-    height: 100vh;
+    height: 80vh;
+    padding-top: 80px; 
+}
+
+h1 {
+    color:#00dbe7;
+    font-size: 60px;
+    font-weight: bold;
+    margin: 0 0 60px 0;
 }
 
 .container {
