@@ -21,11 +21,6 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db.init_app(app)
 
-# ----------------- 初期化 -----------------
-with app.app_context():
-    # DBが存在しなくてもテーブルを作成
-    db.create_all()
-
 # ----------------- 質問リスト -----------------
 positive_questions = [
     "今日は良い一日になると思う",
@@ -187,6 +182,12 @@ def predict():
         return render_template("predict.html", prediction=predictions, days=days)
 
     return render_template("predict.html")
+
+with app.app_context():
+    try:
+        db.create_all()
+    except Exception as e:
+        print(f"DB init skipped: {e}")
 
 # ----------------- 初期化 -----------------
 if __name__=="__main__":
