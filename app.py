@@ -35,6 +35,7 @@ negative_questions = [
     "自分に自信が持てない"
 ]
 
+# ---------------- ユーザー管理 ----------------
 def get_user_id():
     uid = request.cookies.get("user_id")
     if not uid:
@@ -47,6 +48,7 @@ def save_user_csv(uid, data_dict):
     append_to_csv(row)
 
 def load_user_csv(uid=None):
+    """CSV を読み込み、ユーザーIDでフィルタ。空でも安全に返す"""
     df = load_csv()
     if df.empty:
         df = pd.DataFrame(columns=[
@@ -55,9 +57,11 @@ def load_user_csv(uid=None):
         ])
     if uid is not None:
         df = df[df["user_id"] == uid]
-    return df.sort_values("timestamp") if not df.empty else df
+    if "timestamp" in df.columns and not df.empty:
+        df = df.sort_values("timestamp")
+    return df
 
-
+# ---------------- ルーティング ----------------
 @app.route('/')
 def index():
     resp = make_response(render_template('index.html'))
@@ -80,11 +84,9 @@ def question():
 def fluctuation():
     uid = get_user_id()
     df = load_user_csv(uid)
-    # データがない場合は空リストを渡す
-    dates = pd.to_datetime(df["timestamp"]).dt.strftime("%Y-%m-%d").tolist() if not df.empty else []
     return render_template(
         "fluctuation.html",
-        dates=dates,
+        dates=pd.to_datetime(df["timestamp"]).dt.strftime("%Y-%m-%d").tolist() if not df.empty else [],
         mood_list=df["mood"].tolist() if not df.empty else [],
         sleep_time_list=df["sleep_time"].tolist() if not df.empty else [],
         training_time_list=df["training_time"].tolist() if not df.empty else [],
@@ -96,31 +98,22 @@ def fluctuation():
 @app.route('/form', methods=['POST'])
 def form():
     uid = get_user_id()
-    contribution_sum = 0.0
-    for i in range(1, 7):
-        try:
-            val = float(request.form.get(f"q{i}", "0"))
-        except:
-            val = 0.0
-        polarity = request.form.get(f"q{i}_polarity", "positive")
-        contribution_sum += val if polarity == "positive" else -val
-    mood = contribution_sum / 6.0
-    
-    # mood計算
+
+    # ---------------- mood計算 ----------------
     contribution_sum = 0.0
     for i in range(1, 7):
         val_str = request.form.get(f"q{i}", "0")
         try:
             val = float(val_str)
         except (ValueError, TypeError):
-            val = 0.0  # 数値変換できなければ0
+            val = 0.0
         polarity = request.form.get(f"q{i}_polarity", "positive")
         if polarity not in ["positive", "negative"]:
             polarity = "positive"
         contribution_sum += val if polarity == "positive" else -val
     mood = contribution_sum / 6.0
 
-    # 睡眠時間計算
+    # ---------------- 睡眠時間計算 ----------------
     sleep_time = 0.0
     sleep_start = request.form.get("sleep_start", "")
     wake_time = request.form.get("wake_time", "")
@@ -148,6 +141,7 @@ def form():
     typing_speed = _getf("typing_speed")
     typing_accuracy = _getf("typing_accuracy")
 
+    # ---------------- CSV保存 ----------------
     save_user_csv(uid, {
         "mood": mood,
         "sleep_time": sleep_time,
@@ -158,7 +152,7 @@ def form():
         "typing_accuracy": typing_accuracy
     })
 
-    # モデル学習（データ5件以上）
+    # ---------------- モデル学習（データ5件以上） ----------------
     df = load_user_csv()
     if len(df) >= 5:
         X = df[["sleep_time","to_sleep_time","training_time","weight","typing_speed","typing_accuracy"]].to_numpy()
