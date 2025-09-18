@@ -2,9 +2,6 @@ from flask import Flask, request, render_template, redirect, url_for, make_respo
 from model_utils import build_model, save_model_to_s3, load_model_from_s3
 from models import db, TrainingData
 import numpy as np
-from datetime import datetime, timedelta
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense
 from sklearn.preprocessing import StandardScaler
 import os
 
@@ -19,7 +16,6 @@ else:
 
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
 db.init_app(app)
 
 # ----------------- 質問リスト -----------------
@@ -78,7 +74,6 @@ def question():
 @app.route('/fluctuation')
 def fluctuation():
     data = TrainingData.query.order_by(TrainingData.timestamp).all()
-
     dates = [d.timestamp.strftime("%Y-%m-%d") for d in data]
     mood_list = [d.mood for d in data]                 
     sleep_time_list = [d.sleep_time for d in data]     
@@ -98,45 +93,36 @@ def fluctuation():
         typing_accuracy_list=typing_accuracy_list
     )
 
-
 @app.route('/form', methods=['POST'])
 def form():
     uid = get_user_id()
     data = TrainingData(
         user_id=uid,
-        mood=mood,
-        sleep_time=sleep_time,
-        to_sleep_time=to_sleep_time,
-        training_time=training_time,
-        weight=weight,
-        typing_speed=typing_speed,
-        typing_accuracy=typing_accuracy
+        mood=float(request.form['mood']),
+        sleep_time=float(request.form['sleep_time']),
+        to_sleep_time=float(request.form['to_sleep_time']),
+        training_time=float(request.form['training_time']),
+        weight=float(request.form['weight']),
+        typing_speed=float(request.form['typing_speed']),
+        typing_accuracy=float(request.form['typing_accuracy'])
     )
     db.session.add(data)
     db.session.commit()
 
-    # --- ユーザーごとにモデルを再学習して保存 ---
+    # --- ユーザーごとに線形回帰モデルを再学習 ---
     df = TrainingData.query.filter_by(user_id=uid).order_by(TrainingData.timestamp).all()
     if len(df) >= 5:
-        X = np.array([[d.mood,d.sleep_time,d.to_sleep_time,d.training_time,d.weight,d.typing_speed,d.typing_accuracy] for d in df])
-        y = X[:,0]
+        X = np.array([[d.sleep_time,d.to_sleep_time,d.training_time,d.weight,d.typing_speed,d.typing_accuracy] for d in df])
+        y = np.array([d.mood for d in df])
 
         scaler = StandardScaler()
         X_scaled = scaler.fit_transform(X)
 
-        time_steps = 5
-        X_seq, y_seq = [], []
-        for i in range(len(X_scaled)-time_steps):
-            X_seq.append(X_scaled[i:i+time_steps])
-            y_seq.append(y[i+time_steps])
-        X_seq = np.array(X_seq)
-        y_seq = np.array(y_seq)
-
         model = load_model_from_s3(uid)
         if model is None:
-            model = build_model(input_shape=(time_steps, X.shape[1]))
-        model.fit(X_seq, y_seq, epochs=10, batch_size=16, verbose=0)
+            model = build_model()
 
+        model.fit(X_scaled, y)
         save_model_to_s3(model, uid)
 
     return redirect(url_for('index'))
@@ -146,7 +132,6 @@ def predict():
     uid = get_user_id()
     if request.method=="POST":
         days = int(request.form['days'])
-
         model = load_model_from_s3(uid)
         if model is None:
             return "まだモデルが存在しません。データを入力してください。"
@@ -155,20 +140,16 @@ def predict():
         if len(df) < 5:
             return f"データが少なすぎます（{len(df)}件）"
 
-        X = np.array([[d.mood,d.sleep_time,d.to_sleep_time,d.training_time,d.weight,d.typing_speed,d.typing_accuracy] for d in df])
+        X = np.array([[d.sleep_time,d.to_sleep_time,d.training_time,d.weight,d.typing_speed,d.typing_accuracy] for d in df])
         scaler = StandardScaler()
         X_scaled = scaler.fit_transform(X)
 
-        time_steps = 5
-        history_window = list(X_scaled[-time_steps:])
+        last_features = X_scaled[-1]
         predictions = []
         for _ in range(days):
-            x_input = np.expand_dims(np.array(history_window[-time_steps:]), axis=0)
-            pred = model.predict(x_input, verbose=0)[0][0]
+            pred = model.predict(last_features.reshape(1, -1))[0]
             predictions.append(pred)
-            fake_features = history_window[-1].copy()
-            fake_features[0] = pred
-            history_window.append(fake_features)
+            last_features[0] = pred  # mood を更新
 
         return render_template("predict.html", prediction=predictions, days=days)
 
