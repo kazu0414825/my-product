@@ -11,8 +11,8 @@ def get_model_key(user_id):
 
 def build_model(input_shape):
     model = Sequential([
-        LSTM(64, input_shape=input_shape),
-        Dense(32, activation="relu"),
+        LSTM(32, input_shape=input_shape),
+        Dense(16, activation="relu"),
         Dense(1, activation="linear")
     ])
     model.compile(optimizer="adam", loss="mse")
