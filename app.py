@@ -51,22 +51,6 @@ def get_user_id():
         uid = str(np.random.randint(1000000))
     return uid
 
-# 起動時にS3からCSVを復元
-@app.before_first_request
-def init_csv():
-    if not os.path.exists(CSV_FILE):
-        try:
-            df = load_csv_from_s3(CSV_FILE)
-            if df is not None and not df.empty:
-                df.to_csv(CSV_FILE, index=False)
-            else:
-                pd.DataFrame(columns=[
-                    "user_id","timestamp","mood","sleep_time","to_sleep_time",
-                    "training_time","weight","typing_speed","typing_accuracy"
-                ]).to_csv(CSV_FILE, index=False)
-        except:
-            pass
-
 # ----------------- CSVユーティリティ -----------------
 def save_user_csv(uid, data_dict):
     file_exists = os.path.isfile(CSV_FILE)
