@@ -4,7 +4,7 @@ from models import db, TrainingData
 import numpy as np
 from sklearn.preprocessing import StandardScaler
 import os
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 app = Flask(__name__)
 
