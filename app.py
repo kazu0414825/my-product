@@ -4,6 +4,7 @@ import numpy as np
 from datetime import datetime, timedelta
 import pandas as pd
 import random
+import os
 
 CSV_FILE = "data.csv"
 app = Flask(__name__)
@@ -41,9 +42,12 @@ def get_user_id():
     return uid
 
 def save_user_csv(uid, data_dict):
+    """ユーザーの入力を CSV に保存"""
     row = {"user_id": uid, "timestamp": datetime.now().isoformat(), **data_dict}
     append_to_csv(row)
-    push_csv_to_github()
+    # GitHub 連携（環境変数がない場合はスキップ）
+    if "GITHUB_TOKEN" in os.environ and "GITHUB_REPO" in os.environ:
+        push_csv_to_github()
 
 def load_user_csv(uid=None):
     df = load_csv()
@@ -98,6 +102,7 @@ def form():
         contribution_sum += val if polarity == "positive" else -val
     mood = contribution_sum / 6.0
 
+    # 睡眠時間計算
     sleep_time = 0.0
     sleep_start = request.form.get("sleep_start", "")
     wake_time = request.form.get("wake_time", "")
@@ -135,6 +140,7 @@ def form():
         "typing_accuracy": typing_accuracy
     })
 
+    # モデル学習（データ5件以上）
     df = load_user_csv()
     if len(df) >= 5:
         X = df[["sleep_time","to_sleep_time","training_time","weight","typing_speed","typing_accuracy"]].to_numpy()
