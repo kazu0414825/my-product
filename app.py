@@ -10,6 +10,14 @@ app = Flask(__name__)
 
 CSV_FILE = "data.csv"
 
+def init_csv():
+    if not os.path.exists(CSV_FILE):
+        df = load_csv_from_s3(CSV_FILE)
+        df.to_csv(CSV_FILE, index=False)
+
+init_csv()
+
+
 # ----------------- 質問リスト -----------------
 positive_questions = [
     "今日は良い一日になると思う",
