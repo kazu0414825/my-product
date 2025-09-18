@@ -36,13 +36,17 @@ negative_questions = [
 ]
 
 # ---------------- CSV操作 ----------------
+
 def save_csv(row):
-    """データを CSV に保存"""
     if not os.path.exists(CSV_FILE):
         df = pd.DataFrame([row])
-        df.to_csv(CSV_FILE, index=False)
+        df.to_csv(CSV_FILE, index=False)  # ヘッダー付き
     else:
         append_to_csv(row)
+
+def append_to_csv(row):
+    df = pd.DataFrame([row])
+    df.to_csv(CSV_FILE, mode='a', header=False, index=False)
 
 def load_csv_data():
     if os.path.exists(CSV_FILE):
