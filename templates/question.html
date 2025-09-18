@@ -18,22 +18,18 @@
         <label for="{{ q.id }}">Q{{ loop.index }}. {{ q.text }}</label><br>
         <input type="range" id="{{ q.id }}" name="{{ q.id }}" min="0" max="100" step="1" value="0"
              oninput="this.nextElementSibling.value = this.value">
-      <output>0</output>
-      <!-- polarity を hidden で一緒に送る -->
-      <input type="hidden" name="{{ q.id }}_polarity" value="{{ q.polarity }}">
-      <br><br>
-    {% endfor %}
+        <output>0</output>
+        <input type="hidden" name="{{ q.id }}_polarity" value="{{ q.polarity }}">
+        <br><br>
+        {% endfor %}
         
-        <!-- Q7 入眠時刻 -->
-         <label for="sleep_start">Q7. 昨日の入眠時刻：</label><br>
-         <input type="time" id="sleep_start" name="sleep_start"><br><br>
+        <label for="sleep_start">Q7. 昨日の入眠時刻：</label><br>
+        <input type="time" id="sleep_start" name="sleep_start"><br><br>
          
-        <!-- Q8 起床時刻 -->
-         <label for="wake_time">Q8. 今日の起床時刻：</label><br>
-         <input type="time" id="wake_time" name="wake_time"><br><br>
+        <label for="wake_time">Q8. 今日の起床時刻：</label><br>
+        <input type="time" id="wake_time" name="wake_time"><br><br>
 
-        <!-- Q9 -->
-        <label for="time_to_sleep">Q9.昨日寝床に入ってから入眠するまでの時間：</label><br>
+        <label for="time_to_sleep">Q9. 寝床に入ってから入眠までの時間：</label><br>
         <select id="time_to_sleep" name="time_to_sleep">
             <option value="0-15">0〜15分</option>
             <option value="15-30">15〜30分</option>
@@ -41,20 +37,16 @@
             <option value="60+">60分以上</option>
         </select><br><br>
 
-        <!-- Q10 トレーニング時間（分） -->
-         <label for="training_time">Q10. 昨日のトレーニング時間（分）：</label><br>
-         <input type="number" id="training_time" name="training_time" min="0" max="600" step="1"><br><br>
+        <label for="training_time">Q10. 昨日のトレーニング時間（分）：</label><br>
+        <input type="number" id="training_time" name="training_time" min="0" max="600" step="1"><br><br>
         
-         <!-- Q11 体重 -->
-          <label for="weight">Q11. 今日の体重（kg）：</label><br>
-          <input type="number" id="weight" name="weight" min="0" max="200" step="0.1"><br><br>
+        <label for="weight">Q11. 今日の体重（kg）：</label><br>
+        <input type="number" id="weight" name="weight" min="0" max="200" step="0.1"><br><br>
 
-        <!-- タイピングテスト -->
         <h2>タイピングテスト</h2>
         <p id="targetText"></p>
         <input type="text" id="typingInput" autocomplete="off"><br><br>
 
-        <!-- タイピング結果を hidden で送信 -->
         <input type="hidden" name="typing_speed" id="typing_speed">
         <input type="hidden" name="typing_accuracy" id="typing_accuracy">
 
@@ -80,7 +72,7 @@
             if (!startTime) startTime = performance.now();
         });
 
-        document.getElementById('questionForm').addEventListener('submit', (e) => {
+        document.getElementById('questionForm').addEventListener('submit', () => {
             const endTime = performance.now();
             const typed = typingInput.value;
             const totalTime = (endTime - startTime) / 1000; 

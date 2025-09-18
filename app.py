@@ -1,23 +1,14 @@
 from flask import Flask, request, render_template, redirect, url_for, make_response
-from model_utils import build_model, save_model_to_s3, load_model_from_s3, save_user_csv_to_s3, restore_user_csv_from_s3
-from models import db, TrainingData
+from model_utils import build_model, save_model_to_s3, load_model_from_s3, save_csv_to_s3, load_csv_from_s3
 import numpy as np
 import os
 from datetime import datetime, timedelta
 import pandas as pd
+import csv
 
 app = Flask(__name__)
 
-# ----------------- データベース設定 -----------------
-DATABASE_URL = os.environ.get('DATABASE_URL')
-if DATABASE_URL:
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://")  # SQLAlchemy対応
-else:
-    DATABASE_URL = "sqlite:////tmp/mentalwave.db"  # ローカル用
-
-app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-db.init_app(app)
+CSV_FILE = "data.csv"
 
 # ----------------- 質問リスト -----------------
 positive_questions = [
@@ -50,8 +41,47 @@ def get_user_id():
     uid = request.cookies.get("user_id")
     if not uid:
         uid = str(np.random.randint(1000000))
-        restore_user_csv_from_s3(uid)
     return uid
+
+# 起動時にS3からCSVを復元
+@app.before_first_request
+def init_csv():
+    if not os.path.exists(CSV_FILE):
+        try:
+            df = load_csv_from_s3(CSV_FILE)
+            if df is not None and not df.empty:
+                df.to_csv(CSV_FILE, index=False)
+            else:
+                pd.DataFrame(columns=[
+                    "user_id","timestamp","mood","sleep_time","to_sleep_time",
+                    "training_time","weight","typing_speed","typing_accuracy"
+                ]).to_csv(CSV_FILE, index=False)
+        except:
+            pass
+
+# ----------------- CSVユーティリティ -----------------
+def save_user_csv(uid, data_dict):
+    file_exists = os.path.isfile(CSV_FILE)
+    with open(CSV_FILE, "a", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=[
+            "user_id","timestamp","mood","sleep_time","to_sleep_time",
+            "training_time","weight","typing_speed","typing_accuracy"
+        ])
+        if not file_exists:
+            writer.writeheader()
+        row = {"user_id": uid, "timestamp": datetime.now().isoformat(), **data_dict}
+        writer.writerow(row)
+    # S3へ反映
+    save_csv_to_s3(CSV_FILE)
+
+def load_user_csv(uid):
+    if not os.path.isfile(CSV_FILE):
+        return pd.DataFrame(columns=[
+            "user_id","timestamp","mood","sleep_time","to_sleep_time",
+            "training_time","weight","typing_speed","typing_accuracy"
+        ])
+    df = pd.read_csv(CSV_FILE)
+    return df[df["user_id"] == uid].sort_values("timestamp")
 
 # ----------------- ルーティング -----------------
 @app.route('/')
@@ -76,25 +106,18 @@ def question():
 @app.route('/fluctuation')
 def fluctuation():
     uid = get_user_id()
-    data = TrainingData.query.filter_by(user_id=uid).order_by(TrainingData.timestamp).all()
-
-    dates = [d.timestamp.strftime("%Y-%m-%d") for d in data]
-    mood_list = [d.mood for d in data]
-    sleep_time_list = [d.sleep_time for d in data]
-    training_time_list = [d.training_time for d in data]
-    weight_list = [d.weight for d in data]
-    typing_speed_list = [d.typing_speed for d in data]
-    typing_accuracy_list = [d.typing_accuracy for d in data]
+    df = load_user_csv(uid)
+    dates = pd.to_datetime(df["timestamp"]).dt.strftime("%Y-%m-%d").tolist()
 
     return render_template(
         "fluctuation.html",
         dates=dates,
-        mood_list=mood_list,
-        sleep_time_list=sleep_time_list,
-        training_time_list=training_time_list,
-        weight_list=weight_list,
-        typing_speed_list=typing_speed_list,
-        typing_accuracy_list=typing_accuracy_list
+        mood_list=df["mood"].tolist(),
+        sleep_time_list=df["sleep_time"].tolist(),
+        training_time_list=df["training_time"].tolist(),
+        weight_list=df["weight"].tolist(),
+        typing_speed_list=df["typing_speed"].tolist(),
+        typing_accuracy_list=df["typing_accuracy"].tolist()
     )
 
 @app.route('/form', methods=['POST'])
@@ -140,32 +163,23 @@ def form():
     typing_speed = _getf("typing_speed")
     typing_accuracy = _getf("typing_accuracy")
 
-    # DB 保存
-    data = TrainingData(
-        user_id=uid,
-        mood=mood,
-        sleep_time=sleep_time,
-        to_sleep_time=to_sleep_time,
-        training_time=training_time,
-        weight=weight,
-        typing_speed=typing_speed,
-        typing_accuracy=typing_accuracy
-    )
-    db.session.add(data)
-    db.session.commit()
-
     # CSV保存
-    save_user_csv_to_s3(uid)
+    save_user_csv(uid, {
+        "mood": mood,
+        "sleep_time": sleep_time,
+        "to_sleep_time": to_sleep_time,
+        "training_time": training_time,
+        "weight": weight,
+        "typing_speed": typing_speed,
+        "typing_accuracy": typing_accuracy
+    })
 
     # モデル再学習
-    df = TrainingData.query.filter_by(user_id=uid).order_by(TrainingData.timestamp).all()
+    df = load_user_csv(uid)
     if len(df) >= 5:
-        X = np.array([[d.sleep_time, d.to_sleep_time, d.training_time, d.weight, d.typing_speed, d.typing_accuracy] for d in df])
-        y = np.array([d.mood for d in df])
-
-        model = load_model_from_s3(uid)
-        if model is None:
-            model = build_model()
+        X = df[["sleep_time","to_sleep_time","training_time","weight","typing_speed","typing_accuracy"]].to_numpy()
+        y = df["mood"].to_numpy()
+        model = load_model_from_s3(uid) or build_model()
         model.fit(X, y)
         save_model_to_s3(model, uid)
 
@@ -180,23 +194,19 @@ def predict():
         if model is None:
             return "まだモデルが存在しません。データを入力してください。"
 
-        df = TrainingData.query.filter_by(user_id=uid).order_by(TrainingData.timestamp).all()
+        df = load_user_csv(uid)
         if len(df) < 5:
             return f"データが少なすぎます（{len(df)}件）"
 
-        X = np.array([[d.sleep_time, d.to_sleep_time, d.training_time, d.weight, d.typing_speed, d.typing_accuracy] for d in df])
+        X = df[["sleep_time","to_sleep_time","training_time","weight","typing_speed","typing_accuracy"]].to_numpy()
         last_features = X[-1].copy()
         predictions = []
         for _ in range(days):
             pred = float(model.predict(last_features.reshape(1, -1))[0])
             predictions.append(pred)
-        return render_template("predict.html", prediction=predictions, days=days)
+        return render_template("predict.html", prediction=predictions[-1], days=days)
 
     return render_template("predict.html")
-
-# --- DB初期化 ---
-with app.app_context():
-    db.create_all()
 
 if __name__ == "__main__":
     app.run(debug=True)

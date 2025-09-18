@@ -25,39 +25,30 @@
     const typing_speed = {{ typing_speed_list|tojson }};
     const typing_accuracy = {{ typing_accuracy_list|tojson }};
     
-    // mood
     new Chart(document.getElementById('moodChart'), {
         type: 'line',
         data: { labels: dates, datasets: [{ label: '気分スコア', data: mood, borderColor: 'purple', fill: false }] }
     });
     
-    // 睡眠
     new Chart(document.getElementById('sleepChart'), {
         type: 'line',
         data: { labels: dates, datasets: [{ label: '睡眠時間(時間)', data: sleep, borderColor: 'green', fill: false }] }
     });
     
-    // トレーニング
     new Chart(document.getElementById('trainingChart'), {
         type: 'line',
         data: { labels: dates, datasets: [{ label: 'トレーニング時間(分)', data: training, borderColor: 'red', fill: false }] }
     });
     
-    // 体重
     new Chart(document.getElementById('weightChart'), {
         type: 'line',
         data: { labels: dates, datasets: [{ label: '体重(kg)', data: weight, borderColor: 'orange', fill: false }] }
     });
     
-    // タイピング速度
     new Chart(document.getElementById('typing1Chart'), {
         type: 'line',
         data: { labels: dates, datasets: [{ label: 'タイピング速度', data: typing_speed, borderColor: 'blue', fill: false }] }
     });
-
-</script>
-
+    </script>
 </body>
 </html>
-
-
