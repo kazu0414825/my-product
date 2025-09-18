@@ -48,18 +48,20 @@ def save_user_csv(uid, data_dict):
     append_to_csv(row)
 
 def load_user_csv(uid=None):
-    """CSV を読み込み、ユーザーIDでフィルタ。空でも安全に返す"""
     df = load_csv()
-    if df.empty:
-        df = pd.DataFrame(columns=[
-            "user_id","timestamp","mood","sleep_time","to_sleep_time",
-            "training_time","weight","typing_speed","typing_accuracy"
-        ])
+    expected_cols = [
+        "user_id","timestamp","mood","sleep_time","to_sleep_time",
+        "training_time","weight","typing_speed","typing_accuracy"
+    ]
+    for col in expected_cols:
+        if col not in df.columns:
+            df[col] = None
+
     if uid is not None:
         df = df[df["user_id"] == uid]
-    if "timestamp" in df.columns and not df.empty:
-        df = df.sort_values("timestamp")
-    return df
+
+    return df.sort_values("timestamp") if not df.empty else pd.DataFrame(columns=expected_cols)
+
 
 # ---------------- ルーティング ----------------
 @app.route('/')
