@@ -4,8 +4,6 @@ from models import db, TrainingData
 import numpy as np
 import os
 from datetime import datetime, timedelta
-import boto3
-import tempfile
 import pandas as pd
 
 app = Flask(__name__)
@@ -13,9 +11,9 @@ app = Flask(__name__)
 # ----------------- データベース設定 -----------------
 DATABASE_URL = os.environ.get('DATABASE_URL')
 if DATABASE_URL:
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://")
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://")  # SQLAlchemy対応
 else:
-    DATABASE_URL = "sqlite:////tmp/mentalwave.db"  # Heroku 上で書き込み可能な一時パス
+    DATABASE_URL = "sqlite:////tmp/mentalwave.db"  # ローカル用
 
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -52,7 +50,6 @@ def get_user_id():
     uid = request.cookies.get("user_id")
     if not uid:
         uid = str(np.random.randint(1000000))
-        # ユーザー初アクセス時に S3 から CSV を復元
         restore_user_csv_from_s3(uid)
     return uid
 
@@ -108,13 +105,13 @@ def form():
     for i in range(1, 7):
         try:
             val = float(request.form.get(f"q{i}", "0"))
-        except Exception:
+        except:
             val = 0.0
         polarity = request.form.get(f"q{i}_polarity", "positive")
         contribution_sum += val if polarity == "positive" else -val
     mood = contribution_sum / 6.0
 
-    # sleep_time 計算
+    # 睡眠時間計算
     sleep_time = 0.0
     sleep_start = request.form.get("sleep_start", "")
     wake_time = request.form.get("wake_time", "")
@@ -125,17 +122,17 @@ def form():
             if t2 <= t1:
                 t2 += timedelta(days=1)
             sleep_time = round((t2 - t1).total_seconds() / 3600.0, 2)
-        except Exception:
+        except:
             sleep_time = 0.0
 
-    # time_to_sleep
+    # 入眠時間
     to_sleep_map = {"0-15": 7.5, "15-30": 22.5, "30-60": 45.0, "60+": 60.0}
     to_sleep_time = to_sleep_map.get(request.form.get("time_to_sleep", "0-15"), 0.0)
 
     def _getf(name):
         try:
             return float(request.form.get(name, 0))
-        except Exception:
+        except:
             return 0.0
 
     training_time = _getf("training_time")
@@ -143,7 +140,7 @@ def form():
     typing_speed = _getf("typing_speed")
     typing_accuracy = _getf("typing_accuracy")
 
-    # DB に保存
+    # DB 保存
     data = TrainingData(
         user_id=uid,
         mood=mood,
@@ -157,10 +154,10 @@ def form():
     db.session.add(data)
     db.session.commit()
 
-    # ユーザーごとの CSV を S3 に保存
+    # CSV保存
     save_user_csv_to_s3(uid)
 
-    # 線形回帰モデル再学習
+    # モデル再学習
     df = TrainingData.query.filter_by(user_id=uid).order_by(TrainingData.timestamp).all()
     if len(df) >= 5:
         X = np.array([[d.sleep_time, d.to_sleep_time, d.training_time, d.weight, d.typing_speed, d.typing_accuracy] for d in df])
@@ -169,7 +166,6 @@ def form():
         model = load_model_from_s3(uid)
         if model is None:
             model = build_model()
-        
         model.fit(X, y)
         save_model_to_s3(model, uid)
 
@@ -198,14 +194,9 @@ def predict():
 
     return render_template("predict.html")
 
-# --- DB 初期化 ---
+# --- DB初期化 ---
 with app.app_context():
-    try:
-        db.create_all()
-    except Exception as e:
-        print(f"DB init skipped: {e}")
+    db.create_all()
 
 if __name__ == "__main__":
-    with app.app_context():
-        db.create_all()
     app.run(debug=True)

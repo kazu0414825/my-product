@@ -13,26 +13,27 @@ def get_model_key(user_id):
 def build_model():
     return LinearRegression()
 
-def save_model_to_s3(model, user_id, local_path="model.pkl"):
+def save_model_to_s3(model, user_id, local_path="/tmp/model.pkl"):
     joblib.dump(model, local_path)
     if BUCKET:
-        s3 = boto3.client("s3")
+        s3 = boto3.client("s3",
+                          aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
+                          aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY"))
         s3.upload_file(local_path, BUCKET, get_model_key(user_id))
 
-def load_model_from_s3(user_id, local_path="model.pkl"):
+def load_model_from_s3(user_id, local_path="/tmp/model.pkl"):
     if BUCKET:
-        s3 = boto3.client("s3")
+        s3 = boto3.client("s3",
+                          aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
+                          aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY"))
         try:
             s3.download_file(BUCKET, get_model_key(user_id), local_path)
             return joblib.load(local_path)
-        except Exception:
+        except:
             return None
     elif os.path.exists(local_path):
         return joblib.load(local_path)
     return None
-
-
-BUCKET = os.environ.get("S3_BUCKET_NAME")
 
 def get_user_csv_key(user_id):
     return f"user_data/{user_id}.csv"
@@ -55,14 +56,18 @@ def save_user_csv_to_s3(user_id):
     tmp_file = f"/tmp/{user_id}.csv"
     df.to_csv(tmp_file, index=False)
     if BUCKET:
-        s3 = boto3.client("s3")
+        s3 = boto3.client("s3",
+                          aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
+                          aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY"))
         s3.upload_file(tmp_file, BUCKET, get_user_csv_key(user_id))
 
 def restore_user_csv_from_s3(user_id):
     if not BUCKET:
         return
     tmp_file = f"/tmp/{user_id}.csv"
-    s3 = boto3.client("s3")
+    s3 = boto3.client("s3",
+                      aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
+                      aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY"))
     try:
         s3.download_file(BUCKET, get_user_csv_key(user_id), tmp_file)
         df = pd.read_csv(tmp_file)
@@ -83,6 +88,7 @@ def restore_user_csv_from_s3(user_id):
             )
             db.session.add(data)
         db.session.commit()
-    except Exception:
+    except:
         pass
+
 
