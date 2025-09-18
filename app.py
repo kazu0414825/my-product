@@ -1,5 +1,5 @@
 from flask import Flask, request, render_template, redirect, url_for, make_response
-from model_utils import build_model, save_model, load_model, append_to_csv, load_csv, push_csv_to_github
+from model_utils import build_model, save_model, load_model, append_to_csv, load_csv
 import numpy as np
 from datetime import datetime, timedelta
 import pandas as pd
@@ -45,15 +45,21 @@ def save_user_csv(uid, data_dict):
     """ユーザーの入力を CSV に保存"""
     row = {"user_id": uid, "timestamp": datetime.now().isoformat(), **data_dict}
     append_to_csv(row)
-    # GitHub 連携（環境変数がない場合はスキップ）
-    if "GITHUB_TOKEN" in os.environ and "GITHUB_REPO" in os.environ:
-        push_csv_to_github()
 
 def load_user_csv(uid=None):
     df = load_csv()
+    # データが空の場合でもtimestampカラムを持たせる
+    if df.empty:
+        df = pd.DataFrame(columns=[
+            "user_id","timestamp","mood","sleep_time","to_sleep_time",
+            "training_time","weight","typing_speed","typing_accuracy"
+        ])
     if uid is not None:
         df = df[df["user_id"] == uid]
-    return df.sort_values("timestamp")
+    # timestampカラムが存在しない場合を回避
+    if "timestamp" not in df.columns:
+        df["timestamp"] = []
+    return df.sort_values("timestamp") if not df.empty else df
 
 @app.route('/')
 def index():
@@ -77,16 +83,17 @@ def question():
 def fluctuation():
     uid = get_user_id()
     df = load_user_csv(uid)
-    dates = pd.to_datetime(df["timestamp"]).dt.strftime("%Y-%m-%d").tolist()
+    # データがない場合は空リストを渡す
+    dates = pd.to_datetime(df["timestamp"]).dt.strftime("%Y-%m-%d").tolist() if not df.empty else []
     return render_template(
         "fluctuation.html",
         dates=dates,
-        mood_list=df["mood"].tolist(),
-        sleep_time_list=df["sleep_time"].tolist(),
-        training_time_list=df["training_time"].tolist(),
-        weight_list=df["weight"].tolist(),
-        typing_speed_list=df["typing_speed"].tolist(),
-        typing_accuracy_list=df["typing_accuracy"].tolist()
+        mood_list=df["mood"].tolist() if not df.empty else [],
+        sleep_time_list=df["sleep_time"].tolist() if not df.empty else [],
+        training_time_list=df["training_time"].tolist() if not df.empty else [],
+        weight_list=df["weight"].tolist() if not df.empty else [],
+        typing_speed_list=df["typing_speed"].tolist() if not df.empty else [],
+        typing_accuracy_list=df["typing_accuracy"].tolist() if not df.empty else []
     )
 
 @app.route('/form', methods=['POST'])
@@ -99,6 +106,20 @@ def form():
         except:
             val = 0.0
         polarity = request.form.get(f"q{i}_polarity", "positive")
+        contribution_sum += val if polarity == "positive" else -val
+    mood = contribution_sum / 6.0
+    
+    # mood計算
+    contribution_sum = 0.0
+    for i in range(1, 7):
+        val_str = request.form.get(f"q{i}", "0")
+        try:
+            val = float(val_str)
+        except (ValueError, TypeError):
+            val = 0.0  # 数値変換できなければ0
+        polarity = request.form.get(f"q{i}_polarity", "positive")
+        if polarity not in ["positive", "negative"]:
+            polarity = "positive"
         contribution_sum += val if polarity == "positive" else -val
     mood = contribution_sum / 6.0
 

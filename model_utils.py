@@ -2,7 +2,6 @@ import os
 import csv
 import pandas as pd
 from datetime import datetime
-from github import Github
 import joblib
 from sklearn.linear_model import LinearRegression
 
@@ -27,35 +26,15 @@ def load_csv():
     if os.path.exists(CSV_FILE):
         return pd.read_csv(CSV_FILE)
     else:
+        # 空のDataFrameを返す（timestampカラムも含む）
         return pd.DataFrame(columns=[
             "user_id","timestamp","mood","sleep_time","to_sleep_time",
             "training_time","weight","typing_speed","typing_accuracy"
         ])
 
+# GitHub連携は不要なので無効化
 def push_csv_to_github():
-    """Heroku 上の CSV を GitHub に push"""
-    token = os.environ["GITHUB_TOKEN"]
-    repo_name = os.environ["GITHUB_REPO"]
-    g = Github(token)
-    repo = g.get_repo(repo_name)
-
-    with open(CSV_FILE, "rb") as f:
-        content = f.read()
-
-    try:
-        file = repo.get_contents("data.csv")
-        repo.update_file(
-            path="data.csv",
-            message=f"Update data.csv: {datetime.now().isoformat()}",
-            content=content,
-            sha=file.sha
-        )
-    except Exception:
-        repo.create_file(
-            path="data.csv",
-            message=f"Add data.csv: {datetime.now().isoformat()}",
-            content=content
-        )
+    pass
 
 # ---------------- モデル管理 ----------------
 MODEL_DIR = "/tmp/models"
