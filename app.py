@@ -4,6 +4,7 @@ from models import db, TrainingData
 import numpy as np
 from sklearn.preprocessing import StandardScaler
 import os
+from datetime import timedelta
 
 app = Flask(__name__)
 
@@ -96,6 +97,23 @@ def fluctuation():
 @app.route('/form', methods=['POST'])
 def form():
     uid = get_user_id()
+    
+    contribution_sum = 0
+    for i in range(1, 7):  # 質問数に応じて変更
+        val = float(request.form.get(f"q{i}", 0))
+        polarity = request.form.get(f"q{i}_polarity", "positive")
+        contribution_sum += val if polarity == "positive" else -val
+    mood = contribution_sum / 6.0
+    
+    sleep_start = request.form.get("sleep_start", "")
+    wake_time = request.form.get("wake_time", "")
+    sleep_time = 0
+    if sleep_start and wake_time:
+        t1 = datetime.strptime(sleep_start, "%H:%M")
+        t2 = datetime.strptime(wake_time, "%H:%M")
+        if t2 <= t1:
+            t2 += timedelta(days=1)
+        sleep_time = round((t2 - t1).total_seconds() / 3600.0, 2)
 
     mood = float(request.form.get("mood", 0))
     sleep_time = float(request.form.get("sleep_time", 0))
@@ -159,8 +177,7 @@ def predict():
         for _ in range(days):
             pred = model.predict(last_features.reshape(1, -1))[0]
             predictions.append(pred)
-            last_features[0] = pred  # mood を更新
-
+            last_features[0] = pred  
         return render_template("predict.html", prediction=predictions, days=days)
 
     return render_template("predict.html")

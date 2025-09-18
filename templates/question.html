@@ -83,7 +83,7 @@
         document.getElementById('questionForm').addEventListener('submit', (e) => {
             const endTime = performance.now();
             const typed = typingInput.value;
-            const totalTime = (endTime - startTime) / 1000; // 秒
+            const totalTime = (endTime - startTime) / 1000; 
             const speed = typed.length / totalTime;
             let correct = 0;
             for (let i = 0; i < Math.min(typed.length, target.length); i++) {

@@ -1,4 +1,3 @@
-# model_utils.py
 import os
 import boto3
 import joblib
