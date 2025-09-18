@@ -1,14 +1,14 @@
-from flask import Flask, request, render_template, redirect, url_for, make_response
+from flask import Flask, request, render_template, redirect, url_for
 from model_utils import build_model, save_model, load_model, append_to_csv, load_csv
-import numpy as np
 from datetime import datetime, timedelta
 import pandas as pd
+import numpy as np
 import random
-import os
 
-CSV_FILE = "data.csv"
 app = Flask(__name__)
+CSV_FILE = "data.csv"
 
+# ---------------- 質問リスト ----------------
 positive_questions = [
     "今日は良い一日になると思う",
     "今朝は気分が前向きだ",
@@ -35,41 +35,28 @@ negative_questions = [
     "自分に自信が持てない"
 ]
 
-# ---------------- ユーザー管理 ----------------
-def get_user_id():
-    uid = request.cookies.get("user_id")
-    if not uid:
-        uid = str(np.random.randint(1000000))
-    return uid
-
-def save_user_csv(uid, data_dict):
-    """ユーザーの入力を CSV に保存"""
-    row = {"user_id": uid, "timestamp": datetime.now().isoformat(), **data_dict}
+# ---------------- CSV操作 ----------------
+def save_data(data_dict):
+    """CSVに1行追加"""
+    row = {"timestamp": datetime.now().isoformat(), **data_dict}
     append_to_csv(row)
 
-def load_user_csv(uid=None):
+def load_data():
+    """CSVを読み込み、カラムがない場合は追加"""
     df = load_csv()
-    
     expected_cols = [
-        "user_id","timestamp","mood","sleep_time","to_sleep_time",
+        "timestamp","mood","sleep_time","to_sleep_time",
         "training_time","weight","typing_speed","typing_accuracy"
     ]
-    
-    if df.empty:
-        df = pd.DataFrame(columns=expected_cols)
-    
-    if uid is not None:
-        df = df[df["user_id"] == uid]
-
-    return df.sort_values("timestamp")
+    for col in expected_cols:
+        if col not in df.columns:
+            df[col] = None
+    return df.sort_values("timestamp") if not df.empty else pd.DataFrame(columns=expected_cols)
 
 # ---------------- ルーティング ----------------
 @app.route('/')
 def index():
-    resp = make_response(render_template('index.html'))
-    uid = get_user_id()
-    resp.set_cookie("user_id", uid)
-    return resp
+    return render_template('index.html')
 
 @app.route('/question')
 def question():
@@ -82,51 +69,17 @@ def question():
         item['id'] = f"q{i}"
     return render_template('question.html', questions=combined)
 
-@app.route('/fluctuation')
-def fluctuation():
-    uid = get_user_id()
-    df = load_user_csv(uid)
-
-    dates = pd.to_datetime(df["timestamp"]).dt.strftime("%Y-%m-%d").tolist() if not df.empty else []
-    length = len(dates)
-    
-    mood_list = df["mood"].tolist() if not df.empty else [None]*length
-    sleep_time_list = df["sleep_time"].tolist() if not df.empty else [None]*length
-    training_time_list = df["training_time"].tolist() if not df.empty else [None]*length
-    weight_list = df["weight"].tolist() if not df.empty else [None]*length
-    typing_speed_list = df["typing_speed"].tolist() if not df.empty else [None]*length
-    typing_accuracy_list = df["typing_accuracy"].tolist() if not df.empty else [None]*length
-
-    return render_template(
-        "fluctuation.html",
-        dates=dates,
-        mood_list=mood_list,
-        sleep_time_list=sleep_time_list,
-        training_time_list=training_time_list,
-        weight_list=weight_list,
-        typing_speed_list=typing_speed_list,
-        typing_accuracy_list=typing_accuracy_list
-    )
-
 @app.route('/form', methods=['POST'])
 def form():
-    uid = get_user_id()
-
-    # ---------------- mood計算 ----------------
-    contribution_sum = 0.0
+    # mood計算
+    mood_sum = 0
     for i in range(1, 7):
-        val_str = request.form.get(f"q{i}", "0")
-        try:
-            val = float(val_str)
-        except (ValueError, TypeError):
-            val = 0.0
+        val = float(request.form.get(f"q{i}", 0))
         polarity = request.form.get(f"q{i}_polarity", "positive")
-        if polarity not in ["positive", "negative"]:
-            polarity = "positive"
-        contribution_sum += val if polarity == "positive" else -val
-    mood = contribution_sum / 6.0
+        mood_sum += val if polarity == "positive" else -val
+    mood = mood_sum / 6.0
 
-    # ---------------- 睡眠時間計算 ----------------
+    # 睡眠時間計算
     sleep_time = 0.0
     sleep_start = request.form.get("sleep_start", "")
     wake_time = request.form.get("wake_time", "")
@@ -136,26 +89,20 @@ def form():
             t2 = datetime.strptime(wake_time, "%H:%M")
             if t2 <= t1:
                 t2 += timedelta(days=1)
-            sleep_time = round((t2 - t1).total_seconds() / 3600.0, 2)
+            sleep_time = round((t2 - t1).total_seconds() / 3600, 2)
         except:
             sleep_time = 0.0
 
     to_sleep_map = {"0-15": 7.5, "15-30": 22.5, "30-60": 45.0, "60+": 60.0}
     to_sleep_time = to_sleep_map.get(request.form.get("time_to_sleep", "0-15"), 0.0)
 
-    def _getf(name):
-        try:
-            return float(request.form.get(name, 0))
-        except:
-            return 0.0
+    training_time = float(request.form.get("training_time", 0))
+    weight = float(request.form.get("weight", 0))
+    typing_speed = float(request.form.get("typing_speed", 0))
+    typing_accuracy = float(request.form.get("typing_accuracy", 0))
 
-    training_time = _getf("training_time")
-    weight = _getf("weight")
-    typing_speed = _getf("typing_speed")
-    typing_accuracy = _getf("typing_accuracy")
-
-    # ---------------- CSV保存 ----------------
-    save_user_csv(uid, {
+    # CSV保存
+    save_data({
         "mood": mood,
         "sleep_time": sleep_time,
         "to_sleep_time": to_sleep_time,
@@ -165,8 +112,8 @@ def form():
         "typing_accuracy": typing_accuracy
     })
 
-    # ---------------- モデル学習（データ5件以上） ----------------
-    df = load_user_csv()
+    # モデル学習（5件以上）
+    df = load_data()
     if len(df) >= 5:
         X = df[["sleep_time","to_sleep_time","training_time","weight","typing_speed","typing_accuracy"]].to_numpy()
         y = df["mood"].to_numpy()
@@ -176,6 +123,21 @@ def form():
 
     return redirect(url_for('index'))
 
+@app.route('/fluctuation')
+def fluctuation():
+    df = load_data()
+    dates = pd.to_datetime(df["timestamp"]).dt.strftime("%Y-%m-%d").tolist()
+    return render_template(
+        "fluctuation.html",
+        dates=dates,
+        mood_list=df["mood"].tolist(),
+        sleep_time_list=df["sleep_time"].tolist(),
+        training_time_list=df["training_time"].tolist(),
+        weight_list=df["weight"].tolist(),
+        typing_speed_list=df["typing_speed"].tolist(),
+        typing_accuracy_list=df["typing_accuracy"].tolist()
+    )
+
 @app.route('/predict', methods=['GET', 'POST'])
 def predict():
     if request.method == "POST":
@@ -184,7 +146,7 @@ def predict():
         if model is None:
             return "まだモデルが存在しません。データを入力してください。"
 
-        df = load_user_csv()
+        df = load_data()
         if len(df) < 5:
             return f"データが少なすぎます（{len(df)}件）"
 
