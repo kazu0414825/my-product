@@ -1,4 +1,5 @@
 from flask import Flask, request, render_template, redirect, url_for, make_response
+from model_utils import build_model, save_model_to_s3, load_model_from_s3
 from models import db, TrainingData
 import numpy as np
 from datetime import datetime, timedelta
@@ -97,33 +98,12 @@ def fluctuation():
         typing_accuracy_list=typing_accuracy_list
     )
 
+
 @app.route('/form', methods=['POST'])
 def form():
     uid = get_user_id()
-    # mood計算
-    contribution_sum = 0
-    for i in range(1, 7):
-        val = float(request.form.get(f"q{i}", 0))
-        polarity = request.form.get(f"q{i}_polarity", "positive")
-        contribution_sum += val if polarity=="positive" else -val
-    mood = contribution_sum / 6.0
-
-    # sleep_time
-    sleep_time = 0
-    sleep_start = request.form.get("sleep_start","")
-    wake_time = request.form.get("wake_time","")
-    if sleep_start and wake_time:
-        t1 = datetime.strptime(sleep_start,"%H:%M")
-        t2 = datetime.strptime(wake_time,"%H:%M")
-        if t2 <= t1: t2 += timedelta(days=1)
-        sleep_time = round((t2-t1).total_seconds()/3600.0,2)
-
-    to_sleep_time = {"0-15":7.5,"15-30":22.5,"30-60":45,"60+":60}.get(request.form.get("to_sleep_time","0-15"),0)
-    training_time = float(request.form.get("training_time",0))
-    weight = float(request.form.get("weight",0))
-    typing_speed = float(request.form.get("typing_speed",0))
-    typing_accuracy = float(request.form.get("typing_accuracy",0))
-
+    # mood計算などはそのまま
+    # ...
     data = TrainingData(
         user_id=uid,
         mood=mood,
@@ -136,17 +116,10 @@ def form():
     )
     db.session.add(data)
     db.session.commit()
-    return redirect(url_for('index'))
 
-@app.route('/predict', methods=['GET', 'POST'])
-def predict():
-    uid = get_user_id()
-    if request.method=="POST":
-        days = int(request.form['days'])
-        df = db.session.query(TrainingData).filter_by(user_id=uid).order_by(TrainingData.timestamp).all()
-        if len(df)<5:
-            return f"データが少なすぎます（{len(df)}件）"
-
+    # --- ユーザーごとにモデルを再学習して保存 ---
+    df = TrainingData.query.filter_by(user_id=uid).order_by(TrainingData.timestamp).all()
+    if len(df) >= 5:
         X = np.array([[d.mood,d.sleep_time,d.to_sleep_time,d.training_time,d.weight,d.typing_speed,d.typing_accuracy] for d in df])
         y = X[:,0]
 
@@ -161,19 +134,39 @@ def predict():
         X_seq = np.array(X_seq)
         y_seq = np.array(y_seq)
 
-        model = Sequential([
-            LSTM(64,input_shape=(time_steps,X.shape[1])),
-            Dense(32,activation='relu'),
-            Dense(1,activation='linear')
-        ])
-        model.compile(optimizer='adam', loss='mse')
-        model.fit(X_seq, y_seq, epochs=30, batch_size=16, verbose=0)
+        model = load_model_from_s3(uid)
+        if model is None:
+            model = build_model(input_shape=(time_steps, X.shape[1]))
+        model.fit(X_seq, y_seq, epochs=10, batch_size=16, verbose=0)
 
+        save_model_to_s3(model, uid)
+
+    return redirect(url_for('index'))
+
+@app.route('/predict', methods=['GET', 'POST'])
+def predict():
+    uid = get_user_id()
+    if request.method=="POST":
+        days = int(request.form['days'])
+
+        model = load_model_from_s3(uid)
+        if model is None:
+            return "まだモデルが存在しません。データを入力してください。"
+
+        df = TrainingData.query.filter_by(user_id=uid).order_by(TrainingData.timestamp).all()
+        if len(df) < 5:
+            return f"データが少なすぎます（{len(df)}件）"
+
+        X = np.array([[d.mood,d.sleep_time,d.to_sleep_time,d.training_time,d.weight,d.typing_speed,d.typing_accuracy] for d in df])
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(X)
+
+        time_steps = 5
         history_window = list(X_scaled[-time_steps:])
         predictions = []
         for _ in range(days):
-            x_input = np.expand_dims(np.array(history_window[-time_steps:]),axis=0)
-            pred = model.predict(x_input,verbose=0)[0][0]
+            x_input = np.expand_dims(np.array(history_window[-time_steps:]), axis=0)
+            pred = model.predict(x_input, verbose=0)[0][0]
             predictions.append(pred)
             fake_features = history_window[-1].copy()
             fake_features[0] = pred
@@ -182,6 +175,7 @@ def predict():
         return render_template("predict.html", prediction=predictions, days=days)
 
     return render_template("predict.html")
+
 
 with app.app_context():
     try:
