@@ -41,23 +41,30 @@ def append_to_csv(row):
     df.to_csv(CSV_FILE, mode='a', header=False, index=False)
 
 
-def save_csv(row):
-    if not os.path.exists(CSV_FILE):
-        df = pd.DataFrame([row])
-        df.to_csv(CSV_FILE, index=False)  
-    else:
-        append_to_csv(row)
+CSV_COLUMNS = ["timestamp","mood","sleep_time","to_sleep_time",
+               "training_time","weight","typing_speed","typing_accuracy"]
 
+def save_csv(row):
+    df_row = pd.DataFrame([row], columns=CSV_COLUMNS)
+    if not os.path.exists(CSV_FILE):
+        df_row.to_csv(CSV_FILE, index=False)
+        print(f"{CSV_FILE} を新規作成しました")
+    else:
+        df_row.to_csv(CSV_FILE, mode='a', header=False, index=False)
+        print(f"{CSV_FILE} に行を追加しました: {row}")
 
 def load_csv_data():
     if os.path.exists(CSV_FILE):
         df = pd.read_csv(CSV_FILE)
-        if "timestamp" not in df.columns:
-            df["timestamp"] = pd.NaT
+        # 必要な列がない場合は追加
+        for col in CSV_COLUMNS:
+            if col not in df.columns:
+                df[col] = 0
+        # 列順を保証
+        df = df[CSV_COLUMNS]
         return df
     else:
-        cols = ["timestamp","mood","sleep_time","to_sleep_time","training_time","weight","typing_speed","typing_accuracy"]
-        return pd.DataFrame(columns=cols)
+        return pd.DataFrame(columns=CSV_COLUMNS)
 
 # ---------------- ルーティング ----------------
 @app.route('/')
