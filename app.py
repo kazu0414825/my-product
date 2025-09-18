@@ -96,18 +96,28 @@ def fluctuation():
 @app.route('/form', methods=['POST'])
 def form():
     uid = get_user_id()
+
+    mood = float(request.form.get("mood", 0))
+    sleep_time = float(request.form.get("sleep_time", 0))
+    to_sleep_time = float(request.form.get("to_sleep_time", 0))
+    training_time = float(request.form.get("training_time", 0))
+    weight = float(request.form.get("weight", 0))
+    typing_speed = float(request.form.get("typing_speed", 0))
+    typing_accuracy = float(request.form.get("typing_accuracy", 0))
+
     data = TrainingData(
         user_id=uid,
-        mood=float(request.form['mood']),
-        sleep_time=float(request.form['sleep_time']),
-        to_sleep_time=float(request.form['to_sleep_time']),
-        training_time=float(request.form['training_time']),
-        weight=float(request.form['weight']),
-        typing_speed=float(request.form['typing_speed']),
-        typing_accuracy=float(request.form['typing_accuracy'])
+        mood=mood,
+        sleep_time=sleep_time,
+        to_sleep_time=to_sleep_time,
+        training_time=training_time,
+        weight=weight,
+        typing_speed=typing_speed,
+        typing_accuracy=typing_accuracy
     )
     db.session.add(data)
     db.session.commit()
+
 
     # --- ユーザーごとに線形回帰モデルを再学習 ---
     df = TrainingData.query.filter_by(user_id=uid).order_by(TrainingData.timestamp).all()
