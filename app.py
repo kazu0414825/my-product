@@ -1,10 +1,8 @@
 from flask import Flask, request, render_template, redirect, url_for, make_response
-from model_utils import build_model, save_model, load_model, save_csv, load_csv
+from model_utils import build_model, save_model, load_model, append_to_csv, load_csv, push_csv_to_github
 import numpy as np
 from datetime import datetime, timedelta
 import pandas as pd
-import os
-import csv
 import random
 
 CSV_FILE = "data.csv"
@@ -43,20 +41,12 @@ def get_user_id():
     return uid
 
 def save_user_csv(uid, data_dict):
-    file_exists = os.path.isfile(CSV_FILE)
-    with open(CSV_FILE, "a", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=[
-            "user_id","timestamp","mood","sleep_time","to_sleep_time",
-            "training_time","weight","typing_speed","typing_accuracy"
-        ])
-        if not file_exists:
-            writer.writeheader()
-        row = {"user_id": uid, "timestamp": datetime.now().isoformat(), **data_dict}
-        writer.writerow(row)
-    save_csv(CSV_FILE)
+    row = {"user_id": uid, "timestamp": datetime.now().isoformat(), **data_dict}
+    append_to_csv(row)
+    push_csv_to_github()
 
 def load_user_csv(uid=None):
-    df = load_csv(CSV_FILE)
+    df = load_csv()
     if uid is not None:
         df = df[df["user_id"] == uid]
     return df.sort_values("timestamp")
