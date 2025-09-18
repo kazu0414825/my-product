@@ -1,6 +1,6 @@
 from flask import Flask, request, render_template, redirect, url_for, make_response
 from model_utils import build_model, save_model_to_s3, load_model_from_s3
-from mentalwave.models import db, TrainingData
+from models import db, TrainingData
 import numpy as np
 from datetime import datetime, timedelta
 from tensorflow.keras.models import Sequential
@@ -102,8 +102,6 @@ def fluctuation():
 @app.route('/form', methods=['POST'])
 def form():
     uid = get_user_id()
-    # mood計算などはそのまま
-    # ...
     data = TrainingData(
         user_id=uid,
         mood=mood,
