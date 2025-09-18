@@ -12,10 +12,11 @@
 
     <canvas id="moodChart"></canvas>
     <canvas id="sleepChart"></canvas>
-    <canvas id="weightChart"></canvas>
     <canvas id="trainingChart"></canvas>
-    <canvas id="typing1Chart"></canvas>
-    
+    <canvas id="weightChart"></canvas>
+    <canvas id="typingSpeedChart"></canvas>
+    <canvas id="typingAccuracyChart"></canvas>
+
     <script>
     const dates = {{ dates|tojson }};
     const mood = {{ mood_list|tojson }};
@@ -24,31 +25,44 @@
     const weight = {{ weight_list|tojson }};
     const typing_speed = {{ typing_speed_list|tojson }};
     const typing_accuracy = {{ typing_accuracy_list|tojson }};
-    
-    new Chart(document.getElementById('moodChart'), {
-        type: 'line',
-        data: { labels: dates, datasets: [{ label: '気分スコア', data: mood, borderColor: 'purple', fill: false }] }
-    });
-    
-    new Chart(document.getElementById('sleepChart'), {
-        type: 'line',
-        data: { labels: dates, datasets: [{ label: '睡眠時間(時間)', data: sleep, borderColor: 'green', fill: false }] }
-    });
-    
-    new Chart(document.getElementById('trainingChart'), {
-        type: 'line',
-        data: { labels: dates, datasets: [{ label: 'トレーニング時間(分)', data: training, borderColor: 'red', fill: false }] }
-    });
-    
-    new Chart(document.getElementById('weightChart'), {
-        type: 'line',
-        data: { labels: dates, datasets: [{ label: '体重(kg)', data: weight, borderColor: 'orange', fill: false }] }
-    });
-    
-    new Chart(document.getElementById('typing1Chart'), {
-        type: 'line',
-        data: { labels: dates, datasets: [{ label: 'タイピング速度', data: typing_speed, borderColor: 'blue', fill: false }] }
-    });
+
+    const dataMap = {
+        'moodChart': {label: '気分スコア', data: mood, color: 'purple'},
+        'sleepChart': {label: '睡眠時間(時間)', data: sleep, color: 'green'},
+        'trainingChart': {label: 'トレーニング時間(分)', data: training, color: 'red'},
+        'weightChart': {label: '体重(kg)', data: weight, color: 'orange'},
+        'typingSpeedChart': {label: 'タイピング速度', data: typing_speed, color: 'blue'},
+        'typingAccuracyChart': {label: 'タイピング精度', data: typing_accuracy, color: 'cyan'}
+    };
+
+    for (const [canvasId, info] of Object.entries(dataMap)) {
+        new Chart(document.getElementById(canvasId), {
+            type: 'line',
+            data: {
+                labels: dates,
+                datasets: [{
+                    label: info.label,
+                    data: info.data,
+                    borderColor: info.color,
+                    fill: false,
+                    spanGaps: true  // null値はスキップして線を繋ぐ
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: false,
+                        ticks: {
+                            // 小数点の表示を調整（必要なら）
+                            callback: function(value) { return value; }
+                        }
+                    }
+                }
+            }
+        });
+    }
     </script>
 </body>
 </html>

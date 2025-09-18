@@ -84,15 +84,26 @@ def question():
 def fluctuation():
     uid = get_user_id()
     df = load_user_csv(uid)
+
+    dates = pd.to_datetime(df["timestamp"]).dt.strftime("%Y-%m-%d").tolist() if not df.empty else []
+    length = len(dates)
+    
+    mood_list = df["mood"].tolist() if not df.empty else [None]*length
+    sleep_time_list = df["sleep_time"].tolist() if not df.empty else [None]*length
+    training_time_list = df["training_time"].tolist() if not df.empty else [None]*length
+    weight_list = df["weight"].tolist() if not df.empty else [None]*length
+    typing_speed_list = df["typing_speed"].tolist() if not df.empty else [None]*length
+    typing_accuracy_list = df["typing_accuracy"].tolist() if not df.empty else [None]*length
+
     return render_template(
         "fluctuation.html",
-        dates=pd.to_datetime(df["timestamp"]).dt.strftime("%Y-%m-%d").tolist() if not df.empty else [],
-        mood_list=df["mood"].tolist() if not df.empty else [],
-        sleep_time_list=df["sleep_time"].tolist() if not df.empty else [],
-        training_time_list=df["training_time"].tolist() if not df.empty else [],
-        weight_list=df["weight"].tolist() if not df.empty else [],
-        typing_speed_list=df["typing_speed"].tolist() if not df.empty else [],
-        typing_accuracy_list=df["typing_accuracy"].tolist() if not df.empty else []
+        dates=dates,
+        mood_list=mood_list,
+        sleep_time_list=sleep_time_list,
+        training_time_list=training_time_list,
+        weight_list=weight_list,
+        typing_speed_list=typing_speed_list,
+        typing_accuracy_list=typing_accuracy_list
     )
 
 @app.route('/form', methods=['POST'])
