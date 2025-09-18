@@ -1,14 +1,14 @@
 from flask import Flask, request, render_template, redirect, url_for
-from model_utils import build_model, save_model, load_model, append_to_csv, load_csv
 from datetime import datetime, timedelta
 import pandas as pd
 import numpy as np
 import random
+import os
+from model_utils import build_model, save_model, load_model, append_to_csv
 
 app = Flask(__name__)
 CSV_FILE = "data.csv"
 
-# ---------------- 質問リスト ----------------
 positive_questions = [
     "今日は良い一日になると思う",
     "今朝は気分が前向きだ",
@@ -36,22 +36,20 @@ negative_questions = [
 ]
 
 # ---------------- CSV操作 ----------------
-def save_data(data_dict):
-    """CSVに1行追加"""
-    row = {"timestamp": datetime.now().isoformat(), **data_dict}
-    append_to_csv(row)
+def save_csv(row):
+    """データを CSV に保存"""
+    if not os.path.exists(CSV_FILE):
+        df = pd.DataFrame([row])
+        df.to_csv(CSV_FILE, index=False)
+    else:
+        append_to_csv(row)
 
-def load_data():
-    """CSVを読み込み、カラムがない場合は追加"""
-    df = load_csv()
-    expected_cols = [
-        "timestamp","mood","sleep_time","to_sleep_time",
-        "training_time","weight","typing_speed","typing_accuracy"
-    ]
-    for col in expected_cols:
-        if col not in df.columns:
-            df[col] = None
-    return df.sort_values("timestamp") if not df.empty else pd.DataFrame(columns=expected_cols)
+def load_csv_data():
+    if os.path.exists(CSV_FILE):
+        return pd.read_csv(CSV_FILE)
+    else:
+        cols = ["timestamp","mood","sleep_time","to_sleep_time","training_time","weight","typing_speed","typing_accuracy"]
+        return pd.DataFrame(columns=cols)
 
 # ---------------- ルーティング ----------------
 @app.route('/')
@@ -71,15 +69,19 @@ def question():
 
 @app.route('/form', methods=['POST'])
 def form():
-    # mood計算
-    mood_sum = 0
+    # ---------------- mood計算 ----------------
+    contribution_sum = 0.0
     for i in range(1, 7):
-        val = float(request.form.get(f"q{i}", 0))
+        val_str = request.form.get(f"q{i}", "0")
+        try:
+            val = float(val_str)
+        except:
+            val = 0.0
         polarity = request.form.get(f"q{i}_polarity", "positive")
-        mood_sum += val if polarity == "positive" else -val
-    mood = mood_sum / 6.0
+        contribution_sum += val if polarity == "positive" else -val
+    mood = contribution_sum / 6.0
 
-    # 睡眠時間計算
+    # ---------------- 睡眠時間計算 ----------------
     sleep_time = 0.0
     sleep_start = request.form.get("sleep_start", "")
     wake_time = request.form.get("wake_time", "")
@@ -89,20 +91,27 @@ def form():
             t2 = datetime.strptime(wake_time, "%H:%M")
             if t2 <= t1:
                 t2 += timedelta(days=1)
-            sleep_time = round((t2 - t1).total_seconds() / 3600, 2)
+            sleep_time = round((t2 - t1).total_seconds() / 3600.0, 2)
         except:
             sleep_time = 0.0
 
     to_sleep_map = {"0-15": 7.5, "15-30": 22.5, "30-60": 45.0, "60+": 60.0}
     to_sleep_time = to_sleep_map.get(request.form.get("time_to_sleep", "0-15"), 0.0)
 
-    training_time = float(request.form.get("training_time", 0))
-    weight = float(request.form.get("weight", 0))
-    typing_speed = float(request.form.get("typing_speed", 0))
-    typing_accuracy = float(request.form.get("typing_accuracy", 0))
+    def _getf(name):
+        try:
+            return float(request.form.get(name, 0))
+        except:
+            return 0.0
 
-    # CSV保存
-    save_data({
+    training_time = _getf("training_time")
+    weight = _getf("weight")
+    typing_speed = _getf("typing_speed")
+    typing_accuracy = _getf("typing_accuracy")
+
+    # ---------------- CSV保存 ----------------
+    row = {
+        "timestamp": datetime.now().isoformat(),
         "mood": mood,
         "sleep_time": sleep_time,
         "to_sleep_time": to_sleep_time,
@@ -110,10 +119,11 @@ def form():
         "weight": weight,
         "typing_speed": typing_speed,
         "typing_accuracy": typing_accuracy
-    })
+    }
+    save_csv(row)
 
-    # モデル学習（5件以上）
-    df = load_data()
+    # ---------------- モデル学習（データ5件以上） ----------------
+    df = load_csv_data()
     if len(df) >= 5:
         X = df[["sleep_time","to_sleep_time","training_time","weight","typing_speed","typing_accuracy"]].to_numpy()
         y = df["mood"].to_numpy()
@@ -125,7 +135,8 @@ def form():
 
 @app.route('/fluctuation')
 def fluctuation():
-    df = load_data()
+    df = load_csv_data()
+    df = df.fillna(0)
     dates = pd.to_datetime(df["timestamp"]).dt.strftime("%Y-%m-%d").tolist()
     return render_template(
         "fluctuation.html",
@@ -146,7 +157,7 @@ def predict():
         if model is None:
             return "まだモデルが存在しません。データを入力してください。"
 
-        df = load_data()
+        df = load_csv_data()
         if len(df) < 5:
             return f"データが少なすぎます（{len(df)}件）"
 
@@ -159,6 +170,7 @@ def predict():
         return render_template("predict.html", prediction=predictions[-1], days=days)
 
     return render_template("predict.html")
+
 
 if __name__ == "__main__":
     app.run(debug=True)
