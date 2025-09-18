@@ -48,7 +48,6 @@ def save_user_csv(uid, data_dict):
 
 def load_user_csv(uid=None):
     df = load_csv()
-    # データが空の場合でもtimestampカラムを持たせる
     if df.empty:
         df = pd.DataFrame(columns=[
             "user_id","timestamp","mood","sleep_time","to_sleep_time",
@@ -56,10 +55,8 @@ def load_user_csv(uid=None):
         ])
     if uid is not None:
         df = df[df["user_id"] == uid]
-    # timestampカラムが存在しない場合を回避
-    if "timestamp" not in df.columns:
-        df["timestamp"] = []
     return df.sort_values("timestamp") if not df.empty else df
+
 
 @app.route('/')
 def index():
