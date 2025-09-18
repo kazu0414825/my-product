@@ -1,69 +1,77 @@
 import os
-import boto3
-import joblib
+import csv
 import pandas as pd
+from datetime import datetime
+from github import Github
+import joblib
 from sklearn.linear_model import LinearRegression
 
-BUCKET = os.environ.get("S3_BUCKET_NAME")
-
-def get_model_key(user_id):
-    return f"models/{user_id}.pkl"
-
-def get_csv_key():
-    return "user_data/data.csv"
-
-def build_model():
-    return LinearRegression()
-
-# ---------------- モデル管理 ----------------
-def save_model_to_s3(model, user_id, local_path="/tmp/model.pkl"):
-    joblib.dump(model, local_path)
-    if BUCKET:
-        s3 = boto3.client("s3",
-                          aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
-                          aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY"))
-        s3.upload_file(local_path, BUCKET, get_model_key(user_id))
-
-def load_model_from_s3(user_id, local_path="/tmp/model.pkl"):
-    if BUCKET:
-        s3 = boto3.client("s3",
-                          aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
-                          aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY"))
-        try:
-            s3.download_file(BUCKET, get_model_key(user_id), local_path)
-            return joblib.load(local_path)
-        except:
-            return None
-    elif os.path.exists(local_path):
-        return joblib.load(local_path)
-    return None
+CSV_FILE = "data.csv"
 
 # ---------------- CSV管理 ----------------
-def save_csv_to_s3(local_path="data.csv"):
-    if BUCKET and os.path.exists(local_path):
-        s3 = boto3.client("s3",
-                          aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
-                          aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY"))
-        s3.upload_file(local_path, BUCKET, get_csv_key())
+def append_to_csv(data_dict):
+    """Heroku 上の CSV に追記"""
+    file_exists = os.path.isfile(CSV_FILE)
+    with open(CSV_FILE, "a", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=[
+            "user_id","timestamp","mood","sleep_time","to_sleep_time",
+            "training_time","weight","typing_speed","typing_accuracy"
+        ])
+        if not file_exists:
+            writer.writeheader()
+        row = {"timestamp": datetime.now().isoformat(), **data_dict}
+        writer.writerow(row)
 
-def load_csv_from_s3(local_path="data.csv"):
-    if BUCKET:
-        s3 = boto3.client("s3",
-                          aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
-                          aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY"))
-        try:
-            s3.download_file(BUCKET, get_csv_key(), local_path)
-            return pd.read_csv(local_path)
-        except:
-            return pd.DataFrame(columns=[
-                "user_id","timestamp","mood","sleep_time","to_sleep_time",
-                "training_time","weight","typing_speed","typing_accuracy"
-            ])
-    elif os.path.exists(local_path):
-        return pd.read_csv(local_path)
+def load_csv():
+    """CSV を読み込む"""
+    if os.path.exists(CSV_FILE):
+        return pd.read_csv(CSV_FILE)
     else:
         return pd.DataFrame(columns=[
             "user_id","timestamp","mood","sleep_time","to_sleep_time",
             "training_time","weight","typing_speed","typing_accuracy"
         ])
 
+def push_csv_to_github():
+    """Heroku 上の CSV を GitHub に push"""
+    token = os.environ["GITHUB_TOKEN"]
+    repo_name = os.environ["GITHUB_REPO"]
+    g = Github(token)
+    repo = g.get_repo(repo_name)
+
+    with open(CSV_FILE, "rb") as f:
+        content = f.read()
+
+    try:
+        file = repo.get_contents("data.csv")
+        repo.update_file(
+            path="data.csv",
+            message=f"Update data.csv: {datetime.now().isoformat()}",
+            content=content,
+            sha=file.sha
+        )
+    except Exception:
+        repo.create_file(
+            path="data.csv",
+            message=f"Add data.csv: {datetime.now().isoformat()}",
+            content=content
+        )
+
+# ---------------- モデル管理 ----------------
+MODEL_DIR = "/tmp/models"
+os.makedirs(MODEL_DIR, exist_ok=True)
+
+def build_model():
+    return LinearRegression()
+
+def get_model_path(user_id):
+    return os.path.join(MODEL_DIR, f"{user_id}.pkl")
+
+def save_model(model, user_id):
+    joblib.dump(model, get_model_path(user_id))
+
+def load_model(user_id):
+    path = get_model_path(user_id)
+    if os.path.exists(path):
+        return joblib.load(path)
+    return None

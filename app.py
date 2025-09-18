@@ -1,24 +1,15 @@
 from flask import Flask, request, render_template, redirect, url_for, make_response
-from model_utils import build_model, save_model_to_s3, load_model_from_s3, save_csv_to_s3, load_csv_from_s3
+from model_utils import build_model, save_model, load_model, save_csv, load_csv
 import numpy as np
-import os
 from datetime import datetime, timedelta
 import pandas as pd
+import os
 import csv
-
-app = Flask(__name__)
+import random
 
 CSV_FILE = "data.csv"
+app = Flask(__name__)
 
-def init_csv():
-    if not os.path.exists(CSV_FILE):
-        df = load_csv_from_s3(CSV_FILE)
-        df.to_csv(CSV_FILE, index=False)
-
-init_csv()
-
-
-# ----------------- 質問リスト -----------------
 positive_questions = [
     "今日は良い一日になると思う",
     "今朝は気分が前向きだ",
@@ -31,6 +22,7 @@ positive_questions = [
     "心が穏やかで落ち着いている",
     "明るい気持ちで目覚めた"
 ]
+
 negative_questions = [
     "また退屈な一日になりそうだ",
     "虚しさを感じ、エネルギーがない",
@@ -44,14 +36,12 @@ negative_questions = [
     "自分に自信が持てない"
 ]
 
-# ----------------- ユーザーID管理 -----------------
 def get_user_id():
     uid = request.cookies.get("user_id")
     if not uid:
         uid = str(np.random.randint(1000000))
     return uid
 
-# ----------------- CSVユーティリティ -----------------
 def save_user_csv(uid, data_dict):
     file_exists = os.path.isfile(CSV_FILE)
     with open(CSV_FILE, "a", newline="", encoding="utf-8") as f:
@@ -63,19 +53,14 @@ def save_user_csv(uid, data_dict):
             writer.writeheader()
         row = {"user_id": uid, "timestamp": datetime.now().isoformat(), **data_dict}
         writer.writerow(row)
-    # S3へ反映
-    save_csv_to_s3(CSV_FILE)
+    save_csv(CSV_FILE)
 
-def load_user_csv(uid):
-    if not os.path.isfile(CSV_FILE):
-        return pd.DataFrame(columns=[
-            "user_id","timestamp","mood","sleep_time","to_sleep_time",
-            "training_time","weight","typing_speed","typing_accuracy"
-        ])
-    df = pd.read_csv(CSV_FILE)
-    return df[df["user_id"] == uid].sort_values("timestamp")
+def load_user_csv(uid=None):
+    df = load_csv(CSV_FILE)
+    if uid is not None:
+        df = df[df["user_id"] == uid]
+    return df.sort_values("timestamp")
 
-# ----------------- ルーティング -----------------
 @app.route('/')
 def index():
     resp = make_response(render_template('index.html'))
@@ -85,7 +70,6 @@ def index():
 
 @app.route('/question')
 def question():
-    import random
     pos_sel = random.sample(positive_questions, 3)
     neg_sel = random.sample(negative_questions, 3)
     combined = [{'text': q, 'polarity': 'positive'} for q in pos_sel] + \
@@ -100,7 +84,6 @@ def fluctuation():
     uid = get_user_id()
     df = load_user_csv(uid)
     dates = pd.to_datetime(df["timestamp"]).dt.strftime("%Y-%m-%d").tolist()
-
     return render_template(
         "fluctuation.html",
         dates=dates,
@@ -115,7 +98,6 @@ def fluctuation():
 @app.route('/form', methods=['POST'])
 def form():
     uid = get_user_id()
-
     contribution_sum = 0.0
     for i in range(1, 7):
         try:
@@ -126,7 +108,6 @@ def form():
         contribution_sum += val if polarity == "positive" else -val
     mood = contribution_sum / 6.0
 
-    # 睡眠時間計算
     sleep_time = 0.0
     sleep_start = request.form.get("sleep_start", "")
     wake_time = request.form.get("wake_time", "")
@@ -140,7 +121,6 @@ def form():
         except:
             sleep_time = 0.0
 
-    # 入眠時間
     to_sleep_map = {"0-15": 7.5, "15-30": 22.5, "30-60": 45.0, "60+": 60.0}
     to_sleep_time = to_sleep_map.get(request.form.get("time_to_sleep", "0-15"), 0.0)
 
@@ -155,7 +135,6 @@ def form():
     typing_speed = _getf("typing_speed")
     typing_accuracy = _getf("typing_accuracy")
 
-    # CSV保存
     save_user_csv(uid, {
         "mood": mood,
         "sleep_time": sleep_time,
@@ -166,27 +145,25 @@ def form():
         "typing_accuracy": typing_accuracy
     })
 
-    # モデル再学習
-    df = load_user_csv(uid)
+    df = load_user_csv()
     if len(df) >= 5:
         X = df[["sleep_time","to_sleep_time","training_time","weight","typing_speed","typing_accuracy"]].to_numpy()
         y = df["mood"].to_numpy()
-        model = load_model_from_s3(uid) or build_model()
+        model = load_model("global_model") or build_model()
         model.fit(X, y)
-        save_model_to_s3(model, uid)
+        save_model(model, "global_model")
 
     return redirect(url_for('index'))
 
 @app.route('/predict', methods=['GET', 'POST'])
 def predict():
-    uid = get_user_id()
     if request.method == "POST":
         days = int(request.form['days'])
-        model = load_model_from_s3(uid)
+        model = load_model("global_model")
         if model is None:
             return "まだモデルが存在しません。データを入力してください。"
 
-        df = load_user_csv(uid)
+        df = load_user_csv()
         if len(df) < 5:
             return f"データが少なすぎます（{len(df)}件）"
 
