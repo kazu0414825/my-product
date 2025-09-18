@@ -36,21 +36,25 @@ negative_questions = [
 ]
 
 # ---------------- CSV操作 ----------------
-
-def save_csv(row):
-    if not os.path.exists(CSV_FILE):
-        df = pd.DataFrame([row])
-        df.to_csv(CSV_FILE, index=False)  # ヘッダー付き
-    else:
-        append_to_csv(row)
-
 def append_to_csv(row):
     df = pd.DataFrame([row])
     df.to_csv(CSV_FILE, mode='a', header=False, index=False)
 
+
+def save_csv(row):
+    if not os.path.exists(CSV_FILE):
+        df = pd.DataFrame([row])
+        df.to_csv(CSV_FILE, index=False)  
+    else:
+        append_to_csv(row)
+
+
 def load_csv_data():
     if os.path.exists(CSV_FILE):
-        return pd.read_csv(CSV_FILE)
+        df = pd.read_csv(CSV_FILE)
+        if "timestamp" not in df.columns:
+            df["timestamp"] = pd.NaT
+        return df
     else:
         cols = ["timestamp","mood","sleep_time","to_sleep_time","training_time","weight","typing_speed","typing_accuracy"]
         return pd.DataFrame(columns=cols)
@@ -140,8 +144,10 @@ def form():
 @app.route('/fluctuation')
 def fluctuation():
     df = load_csv_data()
+    df["timestamp"] = pd.to_datetime(df["timestamp"], errors='coerce')
     df = df.fillna(0)
-    dates = pd.to_datetime(df["timestamp"]).dt.strftime("%Y-%m-%d").tolist()
+    df = df.sort_values("timestamp")
+    dates = df["timestamp"].dt.strftime("%Y-%m-%d").tolist()
     return render_template(
         "fluctuation.html",
         dates=dates,
