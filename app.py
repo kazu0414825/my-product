@@ -1,14 +1,14 @@
 from flask import Flask, request, render_template, redirect, url_for
 from datetime import datetime, timedelta
 import pandas as pd
-import numpy as np
 import random
 import os
-from model_utils import build_model, save_model, load_model, append_to_csv
+from model_utils import build_model, save_model, load_model
 
 app = Flask(__name__)
 CSV_FILE = "data.csv"
 
+# ---------------- 質問リスト ----------------
 positive_questions = [
     "今日は良い一日になると思う",
     "今朝は気分が前向きだ",
@@ -36,11 +36,6 @@ negative_questions = [
 ]
 
 # ---------------- CSV操作 ----------------
-def append_to_csv(row):
-    df = pd.DataFrame([row])
-    df.to_csv(CSV_FILE, mode='a', header=False, index=False)
-
-
 CSV_COLUMNS = ["timestamp","mood","sleep_time","to_sleep_time",
                "training_time","weight","typing_speed","typing_accuracy"]
 
@@ -56,11 +51,9 @@ def save_csv(row):
 def load_csv_data():
     if os.path.exists(CSV_FILE):
         df = pd.read_csv(CSV_FILE)
-        # 必要な列がない場合は追加
         for col in CSV_COLUMNS:
             if col not in df.columns:
                 df[col] = 0
-        # 列順を保証
         df = df[CSV_COLUMNS]
         return df
     else:
@@ -151,8 +144,19 @@ def form():
 @app.route('/fluctuation')
 def fluctuation():
     df = load_csv_data()
+    if df.empty:
+        # データがない場合の仮データ
+        df = pd.DataFrame([{
+            "timestamp": datetime.now(),
+            "mood": 0,
+            "sleep_time": 0,
+            "to_sleep_time": 0,
+            "training_time": 0,
+            "weight": 0,
+            "typing_speed": 0,
+            "typing_accuracy": 0
+        }])
     df["timestamp"] = pd.to_datetime(df["timestamp"], errors='coerce')
-    df = df.fillna(0)
     df = df.sort_values("timestamp")
     dates = df["timestamp"].dt.strftime("%Y-%m-%d").tolist()
     return render_template(
