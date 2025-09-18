@@ -49,19 +49,19 @@ def save_user_csv(uid, data_dict):
 
 def load_user_csv(uid=None):
     df = load_csv()
+    
     expected_cols = [
         "user_id","timestamp","mood","sleep_time","to_sleep_time",
         "training_time","weight","typing_speed","typing_accuracy"
     ]
-    for col in expected_cols:
-        if col not in df.columns:
-            df[col] = None
-
+    
+    if df.empty:
+        df = pd.DataFrame(columns=expected_cols)
+    
     if uid is not None:
         df = df[df["user_id"] == uid]
 
-    return df.sort_values("timestamp") if not df.empty else pd.DataFrame(columns=expected_cols)
-
+    return df.sort_values("timestamp")
 
 # ---------------- ルーティング ----------------
 @app.route('/')
