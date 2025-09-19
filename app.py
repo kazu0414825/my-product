@@ -171,13 +171,13 @@ def fluctuation():
     return render_template(
         "fluctuation.html",
         dates=dates,
-        mood_list=df["mood"].tolist(),
-        sleep_time_list=df["sleep_time"].tolist(),
-        training_time_list=df["training_time"].tolist(),
-        weight_list=df["weight"].tolist(),
-        typing_speed_list=df["typing_speed"].tolist(),
-        to_sleep_time_list=df["to_sleep_time"].tolist()
-    )
+        mood_list=df["mood"].fillna(0).tolist(),
+        sleep_time_list=df["sleep_time"].fillna(0).tolist(),
+        training_time_list=df["training_time"].fillna(0).tolist(),
+        weight_list=df["weight"].fillna(0).tolist(),
+        typing_speed_list=df["typing_speed"].fillna(0).tolist(),
+        to_sleep_time_list=df["to_sleep_time"].fillna(0).tolist()
+        )
 
 if __name__ == "__main__":
     app.run(debug=True)
