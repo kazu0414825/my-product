@@ -15,15 +15,13 @@ CSV_COLUMNS = [
 ]
 
 def save_csv(row):
-    """1行をCSVに保存（必ずtimestamp付き）"""
     if "timestamp" not in row:
         row["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     df_row = pd.DataFrame([row], columns=CSV_COLUMNS)
-    if not os.path.exists(CSV_FILE):
-        df_row.to_csv(CSV_FILE, index=False)
-    else:
-        df_row.to_csv(CSV_FILE, mode="a", header=False, index=False)
+    write_header = not os.path.exists(CSV_FILE) or os.path.getsize(CSV_FILE) == 0
+    df_row.to_csv(CSV_FILE, mode="a", header=write_header, index=False)
+    
 
 def load_csv_data():
     """CSVを読み込み"""
@@ -169,7 +167,6 @@ def fluctuation():
     if df.empty:
         return "データがまだありません"
 
-    # timestampをdatetime型に変換
     if "timestamp" not in df.columns:
         return "timestampカラムが存在しません"
 
