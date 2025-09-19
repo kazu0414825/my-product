@@ -137,14 +137,13 @@ def predict():
         if model is None:
             return "まだモデルが存在しません。データを入力してください。"
 
-        df = load_csv_data()  # app.py 内の関数 or model_utils.load_csv()
+        df = load_csv_data()  
         if len(df) < 5:
             return f"データが少なすぎます（{len(df)}件）"
 
-        X = df[["sleep_time","to_sleep_time","training_time","weight","typing_speed","typing_accuracy"]].to_numpy()
+        X = df[["sleep_time","to_sleep_time","training_time","weight","typing_speed"]].to_numpy()
         y = df["mood"].to_numpy()
-
-        # 念のため最新データで再学習
+        
         model.fit(X, y)
         save_model(model, "global")
 
@@ -157,6 +156,7 @@ def predict():
         return render_template("predict.html", prediction=predictions[-1], days=days)
 
     return render_template("predict.html")
+
 
 
 @app.route('/fluctuation')
