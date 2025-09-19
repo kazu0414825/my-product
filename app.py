@@ -13,21 +13,28 @@ CSV_COLUMNS = [
     "training_time","weight","typing_speed"
 ]
 
+# ---------------- CSV 保存 ----------------
 def save_csv(row):
     df_row = pd.DataFrame([row], columns=CSV_COLUMNS)
-    if not os.path.exists(CSV_FILE):
+    if not os.path.exists(CSV_FILE) or os.path.getsize(CSV_FILE) == 0:
+        # 新規作成または空ファイルの場合、ヘッダー付きで保存
         df_row.to_csv(CSV_FILE, index=False)
         print(f"{CSV_FILE} を新規作成しました")
     else:
+        # 既存ファイルに追記
         df_row.to_csv(CSV_FILE, mode="a", header=False, index=False)
         print(f"{CSV_FILE} に行を追加しました: {row}")
 
+# ---------------- CSV 読み込み ----------------
 def load_csv_data():
     if os.path.exists(CSV_FILE):
-        df = pd.read_csv(CSV_FILE)
-        # 余計な NaN 行を削除
-        df = df.dropna(how="all")
-        return df
+        try:
+            df = pd.read_csv(CSV_FILE)
+            df = df.dropna(how="all")  # 空行削除
+            return df
+        except pd.errors.EmptyDataError:
+            # 空ファイルならヘッダーだけの DataFrame を返す
+            return pd.DataFrame(columns=CSV_COLUMNS)
     else:
         return pd.DataFrame(columns=CSV_COLUMNS)
 
@@ -136,11 +143,11 @@ def fluctuation():
         return "データがまだありません"
 
     df["timestamp"] = pd.to_datetime(df["timestamp"], errors='coerce')
-    df = df.sort_values("timestamp")
-    dates = df["timestamp"].dt.strftime("%Y-%m-%d %H:%M").tolist()
+    df = df.dropna(subset=["timestamp"]).sort_values("timestamp")
+
     return render_template(
         "fluctuation.html",
-        dates=dates,
+        dates=df["timestamp"].dt.strftime("%Y-%m-%d %H:%M").tolist(),
         mood_list=df["mood"].tolist(),
         sleep_time_list=df["sleep_time"].tolist(),
         training_time_list=df["training_time"].tolist(),
