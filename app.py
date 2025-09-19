@@ -157,8 +157,6 @@ def fluctuation():
         typing_speed_list=df["typing_speed"].tolist(),
         to_sleep_time_list=df["to_sleep_time"].tolist()
     )
-    
-from model import train_model
 
 @app.route('/predict')
 def predict():
