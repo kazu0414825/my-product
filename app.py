@@ -1,5 +1,4 @@
 from flask import Flask, request, render_template, redirect, url_for
-from model_utils import save_model, load_model
 from datetime import datetime, timedelta
 import pandas as pd
 import random
@@ -15,22 +14,22 @@ CSV_COLUMNS = [
 ]
 
 def save_csv(row):
-    if "timestamp" not in row:
-        row["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
     df_row = pd.DataFrame([row], columns=CSV_COLUMNS)
-    write_header = not os.path.exists(CSV_FILE) or os.path.getsize(CSV_FILE) == 0
-    df_row.to_csv(CSV_FILE, mode="a", header=write_header, index=False)
-    
+    if not os.path.exists(CSV_FILE):
+        df_row.to_csv(CSV_FILE, index=False)
+        print(f"{CSV_FILE} を新規作成しました")
+    else:
+        df_row.to_csv(CSV_FILE, mode="a", header=False, index=False)
+        print(f"{CSV_FILE} に行を追加しました: {row}")
 
 def load_csv_data():
-    """CSVを読み込み"""
     if os.path.exists(CSV_FILE):
         df = pd.read_csv(CSV_FILE)
-        return df.dropna(how="all")
+        # 余計な NaN 行を削除
+        df = df.dropna(how="all")
+        return df
     else:
         return pd.DataFrame(columns=CSV_COLUMNS)
-
 
 # ---------------- 質問リスト ----------------
 positive_questions = [
@@ -130,60 +129,25 @@ def form():
 
     return redirect(url_for('index'))
 
-@app.route('/predict', methods=['GET', 'POST'])
-def predict():
-    if request.method == "POST":
-        days = int(request.form['days'])
-        model = load_model("global")
-        if model is None:
-            return "まだモデルが存在しません。データを入力してください。"
-
-        df = load_csv_data()  
-        if len(df) < 5:
-            return f"データが少なすぎます（{len(df)}件）"
-
-        X = df[["sleep_time","to_sleep_time","training_time","weight","typing_speed"]].to_numpy()
-        y = df["mood"].to_numpy()
-        
-        model.fit(X, y)
-        save_model(model, "global")
-
-        last_features = X[-1].copy()
-        predictions = []
-        for _ in range(days):
-            pred = float(model.predict(last_features.reshape(1, -1))[0])
-            predictions.append(pred)
-
-        return render_template("predict.html", prediction=predictions[-1], days=days)
-
-    return render_template("predict.html")
-
-
-
-# ---------------- fluctuation ----------------
 @app.route('/fluctuation')
 def fluctuation():
     df = load_csv_data()
     if df.empty:
         return "データがまだありません"
 
-    if "timestamp" not in df.columns:
-        return "timestampカラムが存在しません"
-
-    df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
-    df = df.dropna(subset=["timestamp"]).sort_values("timestamp")
-
+    df["timestamp"] = pd.to_datetime(df["timestamp"], errors='coerce')
+    df = df.sort_values("timestamp")
+    dates = df["timestamp"].dt.strftime("%Y-%m-%d %H:%M").tolist()
     return render_template(
         "fluctuation.html",
-        dates=df["timestamp"].dt.strftime("%Y-%m-%d %H:%M").tolist(),
-        mood_list=df["mood"].fillna(0).tolist(),
-        sleep_time_list=df["sleep_time"].fillna(0).tolist(),
-        training_time_list=df["training_time"].fillna(0).tolist(),
-        weight_list=df["weight"].fillna(0).tolist(),
-        typing_speed_list=df["typing_speed"].fillna(0).tolist(),
-        to_sleep_time_list=df["to_sleep_time"].fillna(0).tolist()
+        dates=dates,
+        mood_list=df["mood"].tolist(),
+        sleep_time_list=df["sleep_time"].tolist(),
+        training_time_list=df["training_time"].tolist(),
+        weight_list=df["weight"].tolist(),
+        typing_speed_list=df["typing_speed"].tolist(),
+        to_sleep_time_list=df["to_sleep_time"].tolist()
     )
-
 
 if __name__ == "__main__":
     app.run(debug=True)
