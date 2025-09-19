@@ -15,24 +15,23 @@ CSV_COLUMNS = [
 ]
 
 def save_csv(row):
-    row_with_time = row.copy()
-    row_with_time["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    """1行をCSVに保存（必ずtimestamp付き）"""
+    if "timestamp" not in row:
+        row["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    df_row = pd.DataFrame([row_with_time], columns=CSV_COLUMNS + ["timestamp"])
+    df_row = pd.DataFrame([row], columns=CSV_COLUMNS)
     if not os.path.exists(CSV_FILE):
         df_row.to_csv(CSV_FILE, index=False)
-        print(f"{CSV_FILE} を新規作成しました")
     else:
         df_row.to_csv(CSV_FILE, mode="a", header=False, index=False)
-        print(f"{CSV_FILE} に行を追加しました: {row_with_time}")
 
 def load_csv_data():
+    """CSVを読み込み"""
     if os.path.exists(CSV_FILE):
         df = pd.read_csv(CSV_FILE)
-        df = df.dropna(how="all")
-        return df
+        return df.dropna(how="all")
     else:
-        return pd.DataFrame(columns=CSV_COLUMNS + ["timestamp"])
+        return pd.DataFrame(columns=CSV_COLUMNS)
 
 
 # ---------------- 質問リスト ----------------
@@ -163,25 +162,31 @@ def predict():
 
 
 
+# ---------------- fluctuation ----------------
 @app.route('/fluctuation')
 def fluctuation():
     df = load_csv_data()
     if df.empty:
         return "データがまだありません"
 
-    df["timestamp"] = pd.to_datetime(df["timestamp"], errors='coerce')
-    df = df.sort_values("timestamp")
-    dates = df["timestamp"].dt.strftime("%Y-%m-%d %H:%M").tolist()
+    # timestampをdatetime型に変換
+    if "timestamp" not in df.columns:
+        return "timestampカラムが存在しません"
+
+    df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
+    df = df.dropna(subset=["timestamp"]).sort_values("timestamp")
+
     return render_template(
         "fluctuation.html",
-        dates=dates,
+        dates=df["timestamp"].dt.strftime("%Y-%m-%d %H:%M").tolist(),
         mood_list=df["mood"].fillna(0).tolist(),
         sleep_time_list=df["sleep_time"].fillna(0).tolist(),
         training_time_list=df["training_time"].fillna(0).tolist(),
         weight_list=df["weight"].fillna(0).tolist(),
         typing_speed_list=df["typing_speed"].fillna(0).tolist(),
         to_sleep_time_list=df["to_sleep_time"].fillna(0).tolist()
-        )
+    )
+
 
 if __name__ == "__main__":
     app.run(debug=True)
