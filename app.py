@@ -1,4 +1,5 @@
 from flask import Flask, request, render_template, redirect, url_for
+from model_utils import save_model, load_model
 from datetime import datetime, timedelta
 import pandas as pd
 import random
@@ -127,6 +128,36 @@ def form():
     save_csv(row)
 
     return redirect(url_for('index'))
+
+@app.route('/predict', methods=['GET', 'POST'])
+def predict():
+    if request.method == "POST":
+        days = int(request.form['days'])
+        model = load_model("global")
+        if model is None:
+            return "まだモデルが存在しません。データを入力してください。"
+
+        df = load_csv_data()  # app.py 内の関数 or model_utils.load_csv()
+        if len(df) < 5:
+            return f"データが少なすぎます（{len(df)}件）"
+
+        X = df[["sleep_time","to_sleep_time","training_time","weight","typing_speed","typing_accuracy"]].to_numpy()
+        y = df["mood"].to_numpy()
+
+        # 念のため最新データで再学習
+        model.fit(X, y)
+        save_model(model, "global")
+
+        last_features = X[-1].copy()
+        predictions = []
+        for _ in range(days):
+            pred = float(model.predict(last_features.reshape(1, -1))[0])
+            predictions.append(pred)
+
+        return render_template("predict.html", prediction=predictions[-1], days=days)
+
+    return render_template("predict.html")
+
 
 @app.route('/fluctuation')
 def fluctuation():
