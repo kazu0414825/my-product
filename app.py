@@ -15,13 +15,16 @@ CSV_COLUMNS = [
 ]
 
 def save_csv(row):
-    df_row = pd.DataFrame([row], columns=CSV_COLUMNS)
+    row_with_time = row.copy()
+    row_with_time["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    df_row = pd.DataFrame([row_with_time], columns=CSV_COLUMNS + ["timestamp"])
     if not os.path.exists(CSV_FILE):
         df_row.to_csv(CSV_FILE, index=False)
         print(f"{CSV_FILE} を新規作成しました")
     else:
         df_row.to_csv(CSV_FILE, mode="a", header=False, index=False)
-        print(f"{CSV_FILE} に行を追加しました: {row}")
+        print(f"{CSV_FILE} に行を追加しました: {row_with_time}")
 
 def load_csv_data():
     if os.path.exists(CSV_FILE):
@@ -29,7 +32,8 @@ def load_csv_data():
         df = df.dropna(how="all")
         return df
     else:
-        return pd.DataFrame(columns=CSV_COLUMNS)
+        return pd.DataFrame(columns=CSV_COLUMNS + ["timestamp"])
+
 
 # ---------------- 質問リスト ----------------
 positive_questions = [
