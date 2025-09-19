@@ -139,7 +139,7 @@ def form():
 @app.route('/fluctuation')
 def fluctuation():
     df = load_csv_data()
-    if df.empty:
+    if "timestamp" not in df.columns or df.empty:
         return "データがまだありません"
 
     df["timestamp"] = pd.to_datetime(df["timestamp"], errors='coerce')
@@ -155,6 +155,7 @@ def fluctuation():
         typing_speed_list=df["typing_speed"].tolist(),
         to_sleep_time_list=df["to_sleep_time"].tolist()
     )
+
 
 if __name__ == "__main__":
     app.run(debug=True)
