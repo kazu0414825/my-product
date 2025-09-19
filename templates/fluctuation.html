@@ -12,10 +12,10 @@
 
     <canvas id="moodChart"></canvas>
     <canvas id="sleepChart"></canvas>
-    <canvas id="toSleepChart"></canvas>
     <canvas id="trainingChart"></canvas>
     <canvas id="weightChart"></canvas>
     <canvas id="typingSpeedChart"></canvas>
+    <canvas id="toSleepChart"></canvas>
 
     <script>
     const dates = {{ dates|tojson }};
@@ -46,11 +46,12 @@
 
     createChart('moodChart', '気分スコア', mood, 'purple');
     createChart('sleepChart', '睡眠時間(時間)', sleep, 'green');
-    createChart('toSleepChart', '入眠までの時間(分)', to_sleep_time, 'brown');
     createChart('trainingChart', 'トレーニング時間(分)', training, 'red');
     createChart('weightChart', '体重(kg)', weight, 'orange');
     createChart('typingSpeedChart', 'タイピング速度', typing_speed, 'blue');
+    createChart('toSleepChart', '入眠までの時間(分)', to_sleep_time, 'brown');
     </script>
 </body>
 </html>
+
 
