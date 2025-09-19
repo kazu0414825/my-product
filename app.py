@@ -27,7 +27,6 @@ def save_csv(row):
 def load_csv_data():
     if os.path.exists(CSV_FILE):
         df = pd.read_csv(CSV_FILE)
-        # 余計な NaN 行を削除
         df = df.dropna(how="all")
         return df
     else:
