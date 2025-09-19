@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 import random
 import os
+from model import train_model
 
 app = Flask(__name__)
 CSV_FILE = "data.csv"
@@ -16,11 +17,9 @@ CSV_COLUMNS = [
 def save_csv(row):
     df_row = pd.DataFrame([row], columns=CSV_COLUMNS)
     if not os.path.exists(CSV_FILE):
-        # 初回はヘッダー付き
         df_row.to_csv(CSV_FILE, index=False)
         print(f"{CSV_FILE} を新規作成しました")
     else:
-        # 追記時はヘッダーなし
         df_row.to_csv(CSV_FILE, mode="a", header=False, index=False)
         print(f"{CSV_FILE} に行を追加しました: {row}")
 
@@ -69,7 +68,7 @@ negative_questions = [
     "自分に自信が持てない"
 ]
 
-# ---------------- ルーティング ----------------
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -87,7 +86,7 @@ def question():
 
 @app.route('/form', methods=['POST'])
 def form():
-    # ---------------- mood計算 ----------------
+    # ------- mood計算 -------
     contribution_sum = 0.0
     for i in range(1, 7):
         val_str = request.form.get(f"q{i}", "0")
@@ -99,7 +98,7 @@ def form():
         contribution_sum += val if polarity == "positive" else -val
     mood = contribution_sum / 6.0
 
-    # ---------------- 睡眠時間計算 ----------------
+    # ------ 睡眠時間計算 ----
     sleep_time = 0.0
     sleep_start = request.form.get("sleep_start", "")
     wake_time = request.form.get("wake_time", "")
@@ -126,7 +125,6 @@ def form():
     weight = _getf("weight")
     typing_speed = _getf("typing_speed")
 
-    # ---------------- CSV保存 ----------------
     row = {
         "timestamp": datetime.now().isoformat(),
         "mood": mood,
@@ -159,6 +157,19 @@ def fluctuation():
         typing_speed_list=df["typing_speed"].tolist(),
         to_sleep_time_list=df["to_sleep_time"].tolist()
     )
+    
+from model import train_model
+
+@app.route('/predict')
+def predict():
+    model = train_model()
+
+    df = load_csv_data()
+    latest = df.iloc[-1][["sleep_time","to_sleep_time","training_time","weight","typing_speed"]].values.reshape(1, -1)
+    pred = model.predict(latest)[0]
+
+    return render_template("predict.html", prediction=round(pred, 2))
+
 
 if __name__ == "__main__":
     app.run(debug=True)

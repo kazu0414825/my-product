@@ -1,25 +1,12 @@
 <!doctype html>
 <html lang="ja">
-
 <head>
-    <title>Prediction</title>
-    <meta charset="utf-8" />
-    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='stylesheets/predict.css') }}">
+  <meta charset="utf-8">
+  <title>予測結果</title>
 </head>
-
 <body>
-    <h1>気分予測ページ</h1>
-    <a href="/">TOPへ</a>
-
-    <form action="/predict" method="post">
-        <label for="days">何日後の気分を予測しますか？:</label>
-        <input type="number" id="days" name="days" min="1" required>
-        <button type="submit">予測する</button>
-    </form>
-
-    {% if prediction is defined %}
-        <h2>{{ days }}日後の気分: {{ prediction | round(2) }}</h2>
-    {% endif %}
+  <h1>気分スコア予測</h1>
+  <p>翌日の気分スコア: {{ prediction }}</p>
+  <a href="/">TOPへ</a>
 </body>
-
 </html>
