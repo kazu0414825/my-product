@@ -1,12 +1,34 @@
 from flask import Flask, request, render_template, redirect, url_for
 from datetime import datetime, timedelta
 import pandas as pd
+import numpy as np
 import random
 import os
-from model_utils import build_model, save_model, load_model
 
 app = Flask(__name__)
 CSV_FILE = "data.csv"
+
+# ---------------- CSV 設定 ----------------
+CSV_COLUMNS = [
+    "timestamp","mood","sleep_time","to_sleep_time",
+    "training_time","weight","typing_speed","typing_accuracy"
+]
+
+def save_csv(row):
+    df_row = pd.DataFrame([row], columns=CSV_COLUMNS)
+    if not os.path.exists(CSV_FILE):
+        df_row.to_csv(CSV_FILE, index=False)  
+        print(f"{CSV_FILE} を新規作成しました")
+    else:
+        df_row.to_csv(CSV_FILE, mode="a", header=True, index=False)  
+        print(f"{CSV_FILE} に行を追加しました: {row}")
+
+def load_csv_data():
+    if os.path.exists(CSV_FILE):
+        df = pd.read_csv(CSV_FILE)
+        return df
+    else:
+        return pd.DataFrame(columns=CSV_COLUMNS)
 
 # ---------------- 質問リスト ----------------
 positive_questions = [
@@ -34,30 +56,6 @@ negative_questions = [
     "疲れが取れない",
     "自分に自信が持てない"
 ]
-
-# ---------------- CSV操作 ----------------
-CSV_COLUMNS = ["timestamp","mood","sleep_time","to_sleep_time",
-               "training_time","weight","typing_speed","typing_accuracy"]
-
-def save_csv(row):
-    df_row = pd.DataFrame([row], columns=CSV_COLUMNS)
-    if not os.path.exists(CSV_FILE):
-        df_row.to_csv(CSV_FILE, index=False)
-        print(f"{CSV_FILE} を新規作成しました")
-    else:
-        df_row.to_csv(CSV_FILE, mode='a', header=False, index=False)
-        print(f"{CSV_FILE} に行を追加しました: {row}")
-
-def load_csv_data():
-    if os.path.exists(CSV_FILE):
-        df = pd.read_csv(CSV_FILE)
-        for col in CSV_COLUMNS:
-            if col not in df.columns:
-                df[col] = 0
-        df = df[CSV_COLUMNS]
-        return df
-    else:
-        return pd.DataFrame(columns=CSV_COLUMNS)
 
 # ---------------- ルーティング ----------------
 @app.route('/')
@@ -130,35 +128,17 @@ def form():
     }
     save_csv(row)
 
-    # ---------------- モデル学習（データ5件以上） ----------------
-    df = load_csv_data()
-    if len(df) >= 5:
-        X = df[["sleep_time","to_sleep_time","training_time","weight","typing_speed","typing_accuracy"]].to_numpy()
-        y = df["mood"].to_numpy()
-        model = load_model("global_model") or build_model()
-        model.fit(X, y)
-        save_model(model, "global_model")
-
     return redirect(url_for('index'))
 
 @app.route('/fluctuation')
 def fluctuation():
     df = load_csv_data()
     if df.empty:
-        # データがない場合の仮データ
-        df = pd.DataFrame([{
-            "timestamp": datetime.now(),
-            "mood": 0,
-            "sleep_time": 0,
-            "to_sleep_time": 0,
-            "training_time": 0,
-            "weight": 0,
-            "typing_speed": 0,
-            "typing_accuracy": 0
-        }])
+        return "データがまだありません"
+
     df["timestamp"] = pd.to_datetime(df["timestamp"], errors='coerce')
     df = df.sort_values("timestamp")
-    dates = df["timestamp"].dt.strftime("%Y-%m-%d").tolist()
+    dates = df["timestamp"].dt.strftime("%Y-%m-%d %H:%M").tolist()
     return render_template(
         "fluctuation.html",
         dates=dates,
@@ -169,29 +149,6 @@ def fluctuation():
         typing_speed_list=df["typing_speed"].tolist(),
         typing_accuracy_list=df["typing_accuracy"].tolist()
     )
-
-@app.route('/predict', methods=['GET', 'POST'])
-def predict():
-    if request.method == "POST":
-        days = int(request.form['days'])
-        model = load_model("global_model")
-        if model is None:
-            return "まだモデルが存在しません。データを入力してください。"
-
-        df = load_csv_data()
-        if len(df) < 5:
-            return f"データが少なすぎます（{len(df)}件）"
-
-        X = df[["sleep_time","to_sleep_time","training_time","weight","typing_speed","typing_accuracy"]].to_numpy()
-        last_features = X[-1].copy()
-        predictions = []
-        for _ in range(days):
-            pred = float(model.predict(last_features.reshape(1, -1))[0])
-            predictions.append(pred)
-        return render_template("predict.html", prediction=predictions[-1], days=days)
-
-    return render_template("predict.html")
-
 
 if __name__ == "__main__":
     app.run(debug=True)
