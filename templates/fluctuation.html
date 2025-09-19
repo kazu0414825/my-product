@@ -12,10 +12,10 @@
 
     <canvas id="moodChart"></canvas>
     <canvas id="sleepChart"></canvas>
+    <canvas id="toSleepChart"></canvas>
     <canvas id="trainingChart"></canvas>
     <canvas id="weightChart"></canvas>
     <canvas id="typingSpeedChart"></canvas>
-    <canvas id="typingAccuracyChart"></canvas>
 
     <script>
     const dates = {{ dates|tojson }};
@@ -24,11 +24,12 @@
     const training = {{ training_time_list|tojson }};
     const weight = {{ weight_list|tojson }};
     const typing_speed = {{ typing_speed_list|tojson }};
-    const typing_accuracy = {{ typing_accuracy_list|tojson }};
+    const to_sleep_time = {{ to_sleep_time_list|tojson }};
 
     function createChart(ctxId, label, data, color) {
-        const min = Math.min(...data.filter(x => x !== null));
-        const max = Math.max(...data.filter(x => x !== null));
+        const filtered = data.filter(x => x !== null);
+        const min = Math.min(...filtered);
+        const max = Math.max(...filtered);
         new Chart(document.getElementById(ctxId), {
             type: 'line',
             data: { labels: dates, datasets: [{ label: label, data: data, borderColor: color, fill: false }] },
@@ -45,10 +46,11 @@
 
     createChart('moodChart', '気分スコア', mood, 'purple');
     createChart('sleepChart', '睡眠時間(時間)', sleep, 'green');
+    createChart('toSleepChart', '入眠までの時間(分)', to_sleep_time, 'brown');
     createChart('trainingChart', 'トレーニング時間(分)', training, 'red');
     createChart('weightChart', '体重(kg)', weight, 'orange');
     createChart('typingSpeedChart', 'タイピング速度', typing_speed, 'blue');
-    createChart('typingAccuracyChart', 'タイピング精度', typing_accuracy, 'cyan');
     </script>
 </body>
 </html>
+

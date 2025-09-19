@@ -1,7 +1,6 @@
 from flask import Flask, request, render_template, redirect, url_for
 from datetime import datetime, timedelta
 import pandas as pd
-import numpy as np
 import random
 import os
 
@@ -11,21 +10,22 @@ CSV_FILE = "data.csv"
 # ---------------- CSV 設定 ----------------
 CSV_COLUMNS = [
     "timestamp","mood","sleep_time","to_sleep_time",
-    "training_time","weight","typing_speed","typing_accuracy"
+    "training_time","weight","typing_speed"
 ]
 
 def save_csv(row):
     df_row = pd.DataFrame([row], columns=CSV_COLUMNS)
     if not os.path.exists(CSV_FILE):
-        df_row.to_csv(CSV_FILE, index=False)  
+        df_row.to_csv(CSV_FILE, index=False)
         print(f"{CSV_FILE} を新規作成しました")
     else:
-        df_row.to_csv(CSV_FILE, mode="a", header=True, index=False)  
+        df_row.to_csv(CSV_FILE, mode="a", header=False, index=False)
         print(f"{CSV_FILE} に行を追加しました: {row}")
 
 def load_csv_data():
     if os.path.exists(CSV_FILE):
         df = pd.read_csv(CSV_FILE)
+        df = df.dropna(how="all")
         return df
     else:
         return pd.DataFrame(columns=CSV_COLUMNS)
@@ -113,7 +113,6 @@ def form():
     training_time = _getf("training_time")
     weight = _getf("weight")
     typing_speed = _getf("typing_speed")
-    typing_accuracy = _getf("typing_accuracy")
 
     # ---------------- CSV保存 ----------------
     row = {
@@ -123,8 +122,7 @@ def form():
         "to_sleep_time": to_sleep_time,
         "training_time": training_time,
         "weight": weight,
-        "typing_speed": typing_speed,
-        "typing_accuracy": typing_accuracy
+        "typing_speed": typing_speed
     }
     save_csv(row)
 
@@ -147,7 +145,7 @@ def fluctuation():
         training_time_list=df["training_time"].tolist(),
         weight_list=df["weight"].tolist(),
         typing_speed_list=df["typing_speed"].tolist(),
-        typing_accuracy_list=df["typing_accuracy"].tolist()
+        to_sleep_time_list=df["to_sleep_time"].tolist()
     )
 
 if __name__ == "__main__":
