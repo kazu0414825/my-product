@@ -24,10 +24,20 @@ def save_csv(row):
         df_row.to_csv(CSV_FILE, mode="a", header=False, index=False)
         print(f"{CSV_FILE} に行を追加しました: {row}")
 
+    
+
+CSV_COLUMNS = [
+    "timestamp","mood","sleep_time","to_sleep_time",
+    "training_time","weight","typing_speed"
+]
+
 def load_csv_data():
     if os.path.exists(CSV_FILE):
         df = pd.read_csv(CSV_FILE)
-        df = df.dropna(how="all")
+        df["timestamp"] = pd.to_datetime(df["timestamp"], errors='coerce')
+        for col in CSV_COLUMNS[1:]:
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+        df = df.dropna(subset=["timestamp"]).sort_values("timestamp")
         return df
     else:
         return pd.DataFrame(columns=CSV_COLUMNS)
